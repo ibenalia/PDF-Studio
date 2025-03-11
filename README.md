@@ -8,11 +8,11 @@ PDF Studio offers a complete suite of tools to manipulate your PDF files:
 
 - ✅ **Merge PDF**: combine multiple PDF files into a single document
 - ✅ **Split PDF**: extract specific pages or split into multiple files
-- ✅ **Compress PDF**: reduce the size of PDF files while maintaining quality
-- ✅ **Rotate PDF**: rotate pages at different angles
-- ✅ **Add Watermark**: add a text watermark to your documents
-- ✅ **Protect/Unlock PDF**: add or remove password protection
-- ✅ **Extract Information**: analyze and extract metadata from PDFs
+- ❌ **Compress PDF**: reduce the size of PDF files while maintaining quality
+- ❌ **Rotate PDF**: rotate pages at different angles
+- ❌ **Add Watermark**: add a text watermark to your documents
+- ❌ **Protect/Unlock PDF**: add or remove password protection
+- ❌ **Extract Information**: analyze and extract metadata from PDFs
 
 _And much more..._
 
