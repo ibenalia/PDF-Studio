@@ -1,0 +1,347 @@
+/* Custom styles beyond Tailwind */
+
+/* Base styles */
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+    from { 
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.5s ease-in-out;
+}
+
+.animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out;
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Gradient backgrounds */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #1cabc2 0%, #4ab4c9 100%);
+}
+
+.bg-gradient-secondary {
+    background: linear-gradient(135deg, #244a51 0%, #3b5c62 100%);
+}
+
+/* Dark mode gradients */
+.dark-gradient-blue {
+    background: linear-gradient(135deg, #244a51 0%, #1cabc2 100%);
+}
+
+.dark-gradient-gray {
+    background: linear-gradient(to bottom, #282828 0%, #121212 100%);
+}
+
+/* File drop area animation */
+.drag-area {
+    min-height: 200px;
+    border: 2px dashed var(--color-primary-400);
+    border-radius: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(28, 171, 194, 0.05);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.drag-area.active {
+    border-color: var(--color-primary-300);
+    background-color: rgba(28, 171, 194, 0.1);
+}
+
+.dark .drag-area {
+    border: 2px dashed var(--color-primary-400);
+    background-color: rgba(18, 18, 18, 0.6);
+}
+
+.dark .drag-area.active {
+    background-color: rgba(28, 171, 194, 0.15);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+    background: #282828;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #3f3f3f;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #575757;
+}
+
+/* Button styles */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.625rem 1.5rem;
+    background-color: var(--color-primary-400);
+    color: white;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.1s ease;
+    border: none;
+    box-shadow: 0 2px 5px rgba(28, 171, 194, 0.3), 0 1px 2px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background-color: var(--color-primary-300);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(28, 171, 194, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(28, 171, 194, 0.2);
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.625rem 1.5rem;
+    background-color: var(--color-surface-300);
+    color: var(--color-primary-300);
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.1s ease;
+    border: 1px solid var(--color-primary-400);
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-surface-400);
+    color: var(--color-primary-200);
+    border-color: var(--color-primary-300);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-secondary:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Browse Files button special style */
+.browse-files-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.75rem;
+    background-color: var(--color-primary-400);
+    color: white;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.1s ease;
+    box-shadow: 0 2px 5px rgba(28, 171, 194, 0.3), 0 1px 2px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    border: none;
+    font-size: 1rem;
+}
+
+.browse-files-btn:hover {
+    background-color: var(--color-primary-300);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(28, 171, 194, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.browse-files-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(28, 171, 194, 0.2);
+}
+
+/* Studio-like section dividers */
+.section-divider {
+    position: relative;
+    height: 1px;
+    background-color: #e5e7eb;
+}
+
+.section-divider::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100px;
+    height: 3px;
+    background-color: #1cabc2;
+    transform: translateY(-1px);
+}
+
+.dark .section-divider {
+    background-color: #3f3f3f;
+}
+
+/* Dark mode card styles */
+.dark .card {
+    background-color: #282828;
+    border-color: #3f3f3f;
+}
+
+/* Dark mode text */
+.dark .text-primary {
+    color: #4ab4c9;
+}
+
+/* Dark mode form elements */
+.dark input, 
+.dark select, 
+.dark textarea {
+    background-color: #121212;
+    border-color: #3f3f3f;
+    color: #f3f4f6;
+}
+
+.dark input:focus, 
+.dark select:focus, 
+.dark textarea:focus {
+    border-color: #4ab4c9;
+    box-shadow: 0 0 0 2px rgba(28, 171, 194, 0.3);
+}
+
+/* Dark mode placeholder text */
+.dark input::placeholder, 
+.dark textarea::placeholder {
+    color: #717171;
+}
+
+/* Custom styles for My Files page */
+.files-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.files-table th,
+.files-table td {
+    padding: 1rem;
+    text-align: left;
+}
+
+.files-table tbody tr {
+    transition: all 0.1s ease;
+}
+
+.files-table tbody tr:hover {
+    background-color: rgba(28, 171, 194, 0.05);
+}
+
+.file-age-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    background-color: #244a51;
+    color: white;
+}
+
+.file-download-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: #1cabc2;
+    color: white;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.1s ease;
+}
+
+.file-download-btn:hover {
+    background-color: #4ab4c9;
+    transform: translateY(-1px);
+}
+
+.file-download-btn svg {
+    margin-right: 0.5rem;
+}
+
+.empty-files-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+}
+
+.empty-files-icon {
+    width: 4rem;
+    height: 4rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+}
+
+.empty-files-text {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.empty-files-subtext {
+    color: #9ca3af;
+    max-width: 24rem;
+    margin: 0 auto 1.5rem;
+} 

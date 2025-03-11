@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Split PDF - PDF Studio{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/split_pdf.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="min-h-screen py-10">
+    <div class="w-full px-4 sm:px-6 lg:px-8 pt-5 pb-20 dark-gradient-blue">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header Section -->
+            <h1 class="text-3xl font-extrabold text-white mb-2 text-center animate-fade-in-down">Split PDF Files</h1>
+            <p class="text-center text-gray-300 mb-8 max-w-2xl mx-auto animate-fade-in-down" style="animation-delay: 0.1s">
+                Convert each page of your PDF into individual PDF files, compressed in a ZIP archive.
+            </p>
+
+            <div class="bg-surface-400 rounded-xl shadow-lg p-6 animate-fade-in-up" style="animation-delay: 0.1s">
+                <!-- PDF Upload Form -->
+                <form action="{{ url_for('main.split_pdf') }}" method="post" enctype="multipart/form-data" class="text-center">
+                    <!-- Drop Area for PDF Upload -->
+                    <div id="drop-area" class="flex flex-col items-center justify-center mb-6 p-8 border-2 border-dashed border-surface-300 hover:border-primary-400 transition-colors duration-300 rounded-xl group bg-surface-400 cursor-pointer relative overflow-hidden">
+                        <input type="file" id="file-input" name="file" accept=".pdf" class="hidden">
+                        
+                        <div class="absolute inset-0 bg-primary-500/10 scale-y-0 group-hover:scale-y-100 transition-transform origin-bottom duration-300"></div>
+                        
+                        <div class="relative z-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-primary-400 mb-4 group-hover:text-primary-300 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <h3 class="text-xl font-semibold text-white mb-2">Drag and drop your PDF here</h3>
+                            <p class="text-gray-300 mb-4">or click to select a file</p>
+                            
+                            <button type="button" id="select-file-btn" class="bg-primary-500 hover:bg-primary-400 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-300 inline-flex items-center space-x-2 shadow-lg shadow-primary-500/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                <span>Select a file</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- File Preview Container -->
+                    <div id="preview-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-primary-400 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+                                </svg>
+                                <div class="text-left">
+                                    <h4 id="file-name" class="text-lg font-medium text-white truncate max-w-xs"></h4>
+                                    <p id="file-info" class="text-sm text-gray-400"></p>
+                                </div>
+                            </div>
+                            <button type="button" id="change-file" class="text-primary-400 hover:text-primary-300 font-medium">
+                                Change
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Indicator -->
+                    <div id="progress-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <h4 class="text-lg font-medium text-white mb-4">Processing...</h4>
+                        <div class="w-full bg-surface-500 rounded-full h-2.5 mb-2 overflow-hidden">
+                            <div id="progress-bar" class="bg-primary-500 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" class="text-gray-300 text-sm">Preparing file...</p>
+                    </div>
+                    
+                    <!-- Results Display -->
+                    <div id="result-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <h4 class="text-lg font-medium text-white mb-4">Processing complete</h4>
+                        <p id="result-message" class="text-gray-300 mb-4"></p>
+                        
+                        <div class="mt-4">
+                            <div class="flex flex-wrap gap-3 justify-center mt-4">
+                                <a id="download-all-link" href="#" class="bg-primary-500 hover:bg-primary-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-300 inline-flex items-center space-x-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span>Download all files (ZIP)</span>
+                                </a>
+                                <button type="button" id="split-new-file" class="border border-primary-500 text-primary-400 hover:bg-primary-500 hover:text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-300">
+                                    Process a new file
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Feature Description -->
+                    <div class="mt-6 bg-surface-500 rounded-lg p-6 shadow-lg">
+                        <h3 class="text-xl font-semibold text-white mb-4 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-primary-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+                            </svg>
+                            Split Feature
+                        </h3>
+                        
+                        <div class="bg-surface-400/50 rounded-lg p-4 border border-surface-300">
+                            <p class="text-white mb-3">Your PDF will be split into individual files, one per page. All files will then be compressed into a ZIP archive for easy download.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Button -->
+                    <div class="mt-6 text-center">
+                        <button type="button" id="split-button" class="bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-semibold py-3 px-10 rounded-lg shadow-lg shadow-primary-500/30 transition-all hover:shadow-primary-500/50 transform hover:scale-105 duration-200 inline-flex items-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            <span>Split PDF</span>
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Success Message -->
+                {% if success %}
+                <div class="mt-8 p-4 bg-green-900 bg-opacity-30 rounded-lg border border-green-700">
+                    <h3 class="text-lg font-semibold text-green-300 mb-2">Success</h3>
+                    <p class="text-green-200 mb-4">PDF split successfully!</p>
+                    
+                    {% if download_url %}
+                    <a href="{{ download_url }}" class="btn-primary inline-flex items-center justify-center px-4 py-2 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Split PDF
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- Error Message -->
+                {% if error %}
+                <div class="mt-8 p-4 bg-red-900 bg-opacity-30 rounded-lg border border-red-700">
+                    <h3 class="text-lg font-semibold text-red-300 mb-2">Error</h3>
+                    <p class="text-red-200">{{ error }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Instructions Section -->
+            <div class="mt-12 animate-fade-in-up" style="animation-delay: 0.3s">
+                <div class="bg-surface-400 rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-white mb-4">How to Split PDF Files</h2>
+                    <div class="space-y-6">
+                        <!-- Step 1 -->
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">1</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Upload Your PDF</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Drag and drop your PDF file onto the upload area or click to browse your files.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">2</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Process the PDF</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Click the "Split PDF" button to convert each page into separate PDF files.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">3</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Download ZIP Archive</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Download the ZIP file containing all individual PDF pages.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/split_pdf.js') }}"></script>
+{% endblock %} 

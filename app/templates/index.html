@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}PDF Studio - Professional PDF Tools{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="relative py-20 overflow-hidden">
+    <div class="absolute inset-0 dark-gradient-blue z-0"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+            <div class="lg:col-span-6">
+                <div class="text-center lg:text-left lg:flex lg:flex-col lg:justify-center animate-fade-in-up">
+                    <h1 class="mt-4 text-4xl tracking-tight font-extrabold text-white sm:mt-5 sm:text-5xl lg:mt-6 xl:text-6xl">
+                        <span class="block">Professional PDF</span>
+                        <span class="block text-primary-400">Editing Studio</span>
+                    </h1>
+                    <p class="mt-3 text-base text-gray-300 sm:mt-5 sm:text-xl lg:text-lg xl:text-xl max-w-xl mx-auto lg:mx-0">
+                        A powerful yet lightweight solution for all your PDF editing needs. Edit, convert, and manipulate your documents locally with complete data privacy.
+                    </p>
+                    <div class="mt-8 sm:flex sm:justify-center lg:justify-start">
+                        <div class="rounded-md shadow">
+                            <a href="#tools" class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-surface-500 bg-primary-400 hover:bg-primary-300 md:py-4 md:text-lg md:px-10 transition-colors">
+                                Explore Tools
+                            </a>
+                        </div>
+                        <div class="mt-3 sm:mt-0 sm:ml-3">
+                            <a href="#how-it-works" class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-primary-300 bg-surface-400 hover:bg-surface-300 md:py-4 md:text-lg md:px-10 transition-colors">
+                                How It Works
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+                <div class="relative mx-auto w-full rounded-lg shadow-lg lg:max-w-md animate-fade-in">
+                    <div class="relative block w-full bg-surface-400 rounded-lg overflow-hidden">
+                        <img class="w-full opacity-80" src="https://images.unsplash.com/photo-1691458594782-2cef9a152bb3?q=80&w=1331&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="PDF documents">
+                        <div class="absolute inset-0 bg-primary-500 bg-opacity-30"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section id="tools" class="py-16 bg-surface-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:text-center mb-16 animate-fade-in">
+            <h2 class="text-base text-primary-400 font-semibold tracking-wide uppercase">Our Tools</h2>
+            <p class="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-white sm:text-4xl">
+                Everything you need for PDF manipulation
+            </p>
+            <p class="mt-4 max-w-2xl text-xl text-gray-300 lg:mx-auto">
+                From basic operations to advanced editing, we've got you covered with our comprehensive suite of PDF tools.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Tool Cards -->
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up" style="animation-delay: 0.1s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Merge PDF</h3>
+                    <p class="text-gray-300 mb-5">Combine multiple PDF files into a single document, perfectly ordered.</p>
+                    <a href="{{ url_for('main.merge_pdf') }}" class="inline-flex items-center text-primary-400 hover:text-primary-300 font-medium">
+                        Use Tool
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up" style="animation-delay: 0.1s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Split PDF</h3>
+                    <p class="text-gray-300 mb-5">Extract pages or split a PDF into multiple files with precision.</p>
+                    <a href="{{ url_for('main.split_pdf') }}" class="inline-flex items-center text-primary-400 hover:text-primary-300 font-medium">
+                        Use Tool
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up" style="animation-delay: 0.3s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-400 mb-2">Compress PDF</h3>
+                    <p class="text-gray-500 mb-5">Reduce file size while maintaining optimal quality for your documents.</p>
+                    <span class="inline-flex items-center text-gray-500 font-medium cursor-not-allowed">
+                        <span class="relative" title="Cette fonctionnalité sera bientôt disponible">
+                            Use Tool
+                            
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </span>
+                </div>
+            </div>
+
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up opacity-70" style="animation-delay: 0.4s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-400 mb-2">Convert PDF</h3>
+                    <p class="text-gray-500 mb-5">Transform PDFs to and from popular formats like Word, Excel, and PowerPoint.</p>
+                    <span class="inline-flex items-center text-gray-500 font-medium cursor-not-allowed">
+                        <span class="relative" title="Cette fonctionnalité sera bientôt disponible">
+                            Use Tool
+                            
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </span>
+                </div>
+            </div>
+
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up opacity-70" style="animation-delay: 0.5s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-400 mb-2">Edit PDF</h3>
+                    <p class="text-gray-500 mb-5">Add text, images, shapes, and annotations to customize your PDFs.</p>
+                    <span class="inline-flex items-center text-gray-500 font-medium cursor-not-allowed">
+                        <span class="relative" title="Cette fonctionnalité sera bientôt disponible">
+                            Use Tool
+                            
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </span>
+                </div>
+            </div>
+
+            <div class="bg-surface-400 rounded-xl shadow-md border border-surface-300 hover:shadow-lg transition-all duration-300 card-hover animate-fade-in-up opacity-70" style="animation-delay: 0.6s">
+                <div class="px-6 py-8">
+                    <div class="bg-surface-300 rounded-lg inline-block p-3 mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-400 mb-2">Protect PDF</h3>
+                    <p class="text-gray-500 mb-5">Secure your documents with passwords and encryption options.</p>
+                    <span class="inline-flex items-center text-gray-500 font-medium cursor-not-allowed">
+                        <span class="relative" title="Cette fonctionnalité sera bientôt disponible">
+                            Use Tool
+                            
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-12">
+            <a href="#" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-surface-500 bg-primary-400 hover:bg-primary-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 focus:ring-offset-surface-500 transition-colors">
+                More tools incoming
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works Section -->
+<section id="how-it-works" class="py-16 bg-surface-400">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:text-center mb-16">
+            <h2 class="text-base text-primary-400 font-semibold tracking-wide uppercase">How It Works</h2>
+            <p class="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-white sm:text-4xl">
+                Simple, Fast, and Secure
+            </p>
+            <p class="mt-4 max-w-2xl text-xl text-gray-300 lg:mx-auto">
+                Our intuitive process makes PDF editing easier than ever, with complete data sovereignty.
+            </p>
+        </div>
+
+        <div class="relative">
+            <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                <div class="w-full border-t border-surface-300"></div>
+            </div>
+            <div class="relative flex justify-center">
+                <span class="bg-surface-400 px-3 text-lg font-medium text-gray-300">Process Flow</span>
+            </div>
+        </div>
+
+        <div class="mt-12 max-w-lg mx-auto grid gap-12 lg:grid-cols-3 lg:max-w-none">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+                        <span class="text-lg font-bold">1</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg leading-6 font-medium text-white">Upload Files</h3>
+                    <p class="mt-2 text-base text-gray-300">
+                        Simply drag and drop your PDF files onto our secure platform. Your files remain on your local machine.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+                        <span class="text-lg font-bold">2</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg leading-6 font-medium text-white">Edit & Process</h3>
+                    <p class="mt-2 text-base text-gray-300">
+                        Use our intuitive tools to edit, convert, or modify your PDFs with professional precision.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
+                        <span class="text-lg font-bold">3</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg leading-6 font-medium text-white">Download Results</h3>
+                    <p class="mt-2 text-base text-gray-300">
+                        Get your processed PDF files instantly, with no data sent to external servers. 100% privacy guaranteed.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="bg-gradient-primary py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-extrabold text-white sm:text-4xl">
+                Ready to transform your PDF experience?
+            </h2>
+            <p class="mt-4 text-lg leading-6 text-blue-100">
+                Start using our powerful PDF tools today – it's free, secure, and requires no installation.
+            </p>
+            <div class="mt-8 flex justify-center">
+                <div class="inline-flex rounded-md shadow">
+                    <a href="#tools" class="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-surface-500 bg-white hover:bg-gray-50 transition-colors">
+                        Get Started Now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %} 

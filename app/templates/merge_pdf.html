@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Merge PDF - PDF Studio{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/merge_pdf.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="min-h-screen py-10">
+    <div class="w-full px-4 sm:px-6 lg:px-8 pt-5 pb-20 dark-gradient-blue">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-extrabold text-white mb-2 text-center animate-fade-in-down">Merge PDF Files</h1>
+            <p class="text-center text-gray-300 mb-8 max-w-2xl mx-auto animate-fade-in-down" style="animation-delay: 0.1s">
+                Combine multiple PDF documents into a single file.
+            </p>
+
+            <div class="bg-surface-400 rounded-xl shadow-lg p-6 animate-fade-in-up" style="animation-delay: 0.1s">
+                <!-- Simple Traditional Form -->
+                <form action="{{ url_for('main.merge_pdf') }}" method="post" enctype="multipart/form-data" class="text-center">
+                    <div id="drop-area" class="flex flex-col items-center justify-center mb-6 p-8 border-2 border-dashed border-surface-300 hover:border-primary-400 transition-colors duration-300 rounded-xl group bg-surface-400 cursor-pointer relative overflow-hidden">
+                        <input type="file" id="file-input" name="files" multiple accept=".pdf" class="hidden">
+                        
+                        <div class="absolute inset-0 bg-primary-500/10 scale-y-0 group-hover:scale-y-100 transition-transform origin-bottom duration-300"></div>
+                        
+                        <!-- Message indiquant des fichiers déjà sélectionnés - caché par défaut -->
+                        <div id="files-selected-indicator" class="w-full mb-4 py-2 px-4 bg-primary-500/20 text-primary-200 rounded-lg text-center hidden">
+                            <span id="files-count-indicator">0</span> files already added - Continue adding files
+                        </div>
+                        
+                        <div class="relative z-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-primary-400 mb-4 group-hover:text-primary-300 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <h3 class="text-xl font-semibold text-white mb-2">Drag and drop your PDFs here</h3>
+                            <p class="text-gray-300 mb-4">Add as many files as needed</p>
+                            
+                            <button type="button" id="select-files-btn" class="bg-primary-500 hover:bg-primary-400 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-300 inline-flex items-center space-x-2 shadow-lg shadow-primary-500/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                <span>Select files</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Selected Files Container (hidden initially) -->
+                    <div id="preview-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-medium text-white">Selected PDFs</h4>
+                            <button type="button" id="change-files" class="text-primary-400 hover:text-primary-300 font-medium">
+                                Change selection
+                            </button>
+                        </div>
+                        
+                        <div id="selected-files-list" class="max-h-60 overflow-y-auto bg-surface-500 rounded-lg p-3 space-y-2"></div>
+                        
+                        <div class="flex items-center justify-between mt-4">
+                            <button type="button" id="clear-all" class="text-gray-400 hover:text-red-400 text-sm">
+                                Clear all
+                            </button>
+                            <div class="text-sm text-gray-400">
+                                <span id="file-count">0</span> files • <span id="total-size">0 B</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Container (hidden initially) -->
+                    <div id="progress-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <h4 class="text-lg font-medium text-white mb-4">Processing...</h4>
+                        <div class="w-full bg-surface-500 rounded-full h-2.5 mb-2 overflow-hidden">
+                            <div id="progress-bar" class="bg-primary-500 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" class="text-gray-300 text-sm">Preparing files...</p>
+                    </div>
+                    
+                    <!-- Results Container (hidden initially) -->
+                    <div id="result-container" class="mb-6 bg-surface-400 rounded-xl p-6 hidden">
+                        <h4 class="text-lg font-medium text-white mb-4">Processing complete</h4>
+                        <p id="result-message" class="text-gray-300 mb-4"></p>
+                        
+                        <div class="flex flex-wrap gap-3 justify-center mt-4">
+                            <a id="download-link" href="#" class="bg-primary-500 hover:bg-primary-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-300 inline-flex items-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                <span>Download merged PDF</span>
+                            </a>
+                            <button type="button" id="merge-new-files" class="border border-primary-500 text-primary-400 hover:bg-primary-500 hover:text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-300">
+                                Merge new files
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 bg-surface-500 rounded-lg p-4">
+                        <!-- Options for PDF merge -->
+                        <h3 class="text-lg font-semibold text-white mb-3">Merge options</h3>
+                        
+                        <div class="flex flex-col space-y-3">
+                            <!-- Add options for ordering, etc. -->
+                            <div class="flex items-center">
+                                <input id="sort-by-name" type="radio" name="sort_method" value="name" class="h-4 w-4 text-primary-500">
+                                <label for="sort-by-name" class="ml-2 text-gray-300">Sort by filename</label>
+                            </div>
+                            
+                            <div class="flex items-center">
+                                <input id="sort-by-selection" type="radio" name="sort_method" value="selection" checked class="h-4 w-4 text-primary-500">
+                                <label for="sort-by-selection" class="ml-2 text-gray-300">Use selection order</label>
+                            </div>
+                            
+                            <div class="flex items-center mt-2">
+                                <input id="include-bookmarks" type="checkbox" name="include_bookmarks" checked class="h-4 w-4 text-primary-500">
+                                <label for="include-bookmarks" class="ml-2 text-gray-300">Include bookmarks</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 text-center">
+                        <button type="button" id="merge-button" class="bg-primary-500 hover:bg-primary-400 text-white font-semibold py-3 px-8 rounded-lg shadow-lg transition-colors duration-300 inline-flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-500" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Merge PDFs</span>
+                        </button>
+                    </div>
+                </form>
+                
+                {% if result %}
+                <div class="mt-8 p-4 bg-surface-500 rounded-lg">
+                    <h3 class="text-lg font-semibold text-white mb-3">Merge Complete</h3>
+                    <p class="text-gray-300 mb-4">{{ result.message }}</p>
+                    
+                    {% if result.download_url %}
+                    <a href="{{ result.download_url }}" class="btn-primary inline-flex items-center justify-center px-4 py-2 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Merged PDF
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                {% if error %}
+                <div class="mt-8 p-4 bg-red-900 bg-opacity-30 rounded-lg border border-red-700">
+                    <h3 class="text-lg font-semibold text-red-300 mb-2">Error</h3>
+                    <p class="text-red-200">{{ error }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="mt-12 animate-fade-in-up" style="animation-delay: 0.3s">
+                <div class="bg-surface-400 rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-white mb-4">How to Merge PDF Files</h2>
+                    <div class="space-y-6">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">1</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Upload Your PDFs</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Drag and drop your PDF files onto the upload area or click to browse your files.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">2</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Arrange Your Files</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Rearrange your PDFs by dragging and dropping them in the desired order.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-10 w-10 rounded-md bg-primary-500 text-white">
+                                    <span class="text-lg font-bold">3</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-white">Merge and Download</h3>
+                                <p class="mt-1 text-gray-300">
+                                    Click the "Merge Files" button and then download your combined PDF document.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-surface-300 pt-6">
+                            <p class="text-gray-300">
+                                <strong class="text-white">Note:</strong> All processing happens locally in your browser. Your files are not uploaded to any server, ensuring complete privacy and security.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<!-- No JavaScript needed for the simplified approach -->
+<script src="{{ url_for('static', filename='js/merge_pdf.js') }}"></script>
+{% endblock %} 

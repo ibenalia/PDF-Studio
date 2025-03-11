@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <!-- Meta tags -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="description" content="PDF Studio - A powerful and lightweight solution for all your PDF editing needs">
+    
+    <title>{% block title %}PDF Editor Studio{% endblock %}</title>
+    
+    <!-- Tailwind CSS configuration -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#addae4',
+                            100: '#97d0dd',
+                            200: '#80c7d6',
+                            300: '#67becf',
+                            400: '#4ab4c9',
+                            500: '#1cabc2',
+                            600: '#1cabc2',
+                            700: '#1cabc2',
+                            800: '#1cabc2',
+                            900: '#1cabc2',
+                            950: '#1cabc2',
+                        },
+                        surface: {
+                            50: '#8b8b8b',
+                            100: '#717171',
+                            200: '#575757',
+                            300: '#3f3f3f',
+                            400: '#282828',
+                            500: '#121212',
+                            600: '#121212',
+                            700: '#121212',
+                            800: '#121212',
+                            900: '#121212',
+                        },
+                        tonal: {
+                            50: '#99aaad',
+                            100: '#81969a',
+                            200: '#6a8287',
+                            300: '#526f74',
+                            400: '#3b5c62',
+                            500: '#244a51',
+                            600: '#244a51',
+                            700: '#244a51',
+                            800: '#244a51',
+                            900: '#244a51',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter var', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fade-in 0.5s ease-in-out',
+                        'fade-in-up': 'fade-in-up 0.5s ease-out'
+                    },
+                    keyframes: {
+                        'fade-in': {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        'fade-in-up': {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- External libraries -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    
+    <!-- Application styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    
+    <!-- Page-specific head content -->
+    {% block extra_head %}{% endblock %}
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-surface-500 text-gray-100 min-h-screen flex flex-col">
+    <!-- Header/Navigation -->
+    <header class="relative bg-surface-400 border-b border-surface-300 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo and site name -->
+                <div class="flex items-center">
+                    <a href="{{ url_for('main.index') }}" class="flex items-center">
+                        <svg class="h-8 w-8 text-primary-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 14l9-5-9-5-9 5 9 5z"/>
+                            <path d="M12 14l6.16-3.422a12 12 0 01.665 1.526 11.953 11.953 0 01.644 3.663c0 4.188-2.146 7.862-5.384 9.992L12 14z"/>
+                            <path d="M12 14l-6.16-3.422a12 12 0 00-.665 1.526 11.953 11.953 0 00-.644 3.663c0 4.188 2.146 7.862 5.384 9.992L12 14z"/>
+                        </svg>
+                        <span class="ml-2 text-xl font-semibold text-white">PDF Studio</span>
+                    </a>
+                </div>
+                
+                <!-- Desktop navigation -->
+                <nav class="hidden md:flex space-x-8">
+                    <a href="{{ url_for('main.index') }}#tools" class="text-gray-300 hover:text-primary-400 transition-colors px-3 py-2 text-sm font-medium">Tools</a>
+                    <a href="{{ url_for('main.my_files') }}" class="text-gray-300 hover:text-primary-400 transition-colors px-3 py-2 text-sm font-medium">My Files</a>
+                </nav>
+                
+                <!-- Mobile menu button -->
+                <div class="md:hidden flex items-center">
+                    <button type="button" class="text-gray-300 hover:text-gray-100 focus:outline-none">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-surface-400 text-white border-t border-surface-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <!-- About section -->
+                <div class="col-span-1 md:col-span-2">
+                    <div class="flex items-center">
+                        <svg class="h-8 w-8 text-primary-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 14l9-5-9-5-9 5 9 5z"/>
+                            <path d="M12 14l6.16-3.422a12 12 0 01.665 1.526 11.953 11.953 0 01.644 3.663c0 4.188-2.146 7.862-5.384 9.992L12 14z"/>
+                            <path d="M12 14l-6.16-3.422a12 12 0 00-.665 1.526 11.953 11.953 0 00-.644 3.663c0 4.188 2.146 7.862 5.384 9.992L12 14z"/>
+                        </svg>
+                        <span class="ml-2 text-xl font-semibold">PDF Studio</span>
+                    </div>
+                    <p class="mt-4 text-gray-400 max-w-md">
+                        A powerful and lightweight solution for all your PDF editing needs. Process your documents locally with complete data sovereignty.
+                    </p>
+                </div>
+                
+                <!-- Tools links -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Tools</h3>
+                    <ul class="mt-4 space-y-2">
+                        <li><a href="{{ url_for('main.merge_pdf') }}" class="text-gray-400 hover:text-primary-400 transition-colors">Merge PDF</a></li>
+                        <li><a href="{{ url_for('main.split_pdf') }}" class="text-gray-400 hover:text-primary-400 transition-colors">Split PDF</a></li>
+                        <li><a href="{{ url_for('main.compress_pdf') }}" class="text-gray-400 hover:text-primary-400 transition-colors">Compress PDF</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-primary-400 transition-colors">Convert PDF</a></li>
+                    </ul>
+                </div>
+                
+                <!-- Legal links -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Legal</h3>
+                    <ul class="mt-4 space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-primary-400 transition-colors">Privacy Policy</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-primary-400 transition-colors">Terms of Service</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Copyright -->
+            <div class="mt-12 border-t border-surface-300 pt-8">
+                <p class="text-gray-400 text-sm text-center">
+                    &copy; 2024 PDF Studio. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html> 
