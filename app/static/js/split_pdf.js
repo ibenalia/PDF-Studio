@@ -27,16 +27,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (resultContainer) resultContainer.style.display = 'none';
     
     /**
-     * Formats file size in bytes to human-readable format
+     * Format file size in a human-readable format
      * @param {number} bytes - File size in bytes
      * @return {string} Formatted file size
      */
     function formatFileSize(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        if (!bytes || isNaN(bytes)) return '0 B';
+        
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        
+        return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
     }
     
     /**
@@ -339,8 +340,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultContainer = document.getElementById('result-container');
         const resultMessage = document.getElementById('result-message');
         const downloadAllLink = document.getElementById('download-all-link');
+        const splitPagesTableContainer = document.getElementById('split-pages-table-container');
+        const splitPagesTableBody = document.getElementById('split-pages-table-body');
         
-        if (!resultContainer || !resultMessage || !downloadAllLink) {
+        if (!resultContainer || !resultMessage || !downloadAllLink || !splitPagesTableContainer || !splitPagesTableBody) {
             return;
         }
         
@@ -352,6 +355,125 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Set download link
         downloadAllLink.href = data.download_url;
+        
+        // Check if we have file details to display
+        if (data.files_count > 1 && data.is_zip) {
+            // For multiple files, we need to fetch the file details
+            fetchSplitPages(data.filename);
+        } else if (data.data && data.data.files && data.data.files.length > 0) {
+            // If file details are already in the response
+            populateSplitPagesTable(data.data.files);
+        }
+    }
+    
+    /**
+     * Fetches the details of split pages for display in the table
+     * @param {string} zipFilename - The filename of the ZIP containing the split pages
+     */
+    function fetchSplitPages(zipFilename) {
+        // Extract the base name from the zip filename (remove split_ prefix and .zip extension)
+        const baseName = zipFilename.replace('split_', '').replace('.zip', '');
+        
+        // Make an API call to get the file details
+        fetch('/api/list-split-files', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                zip_filename: zipFilename
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.files) {
+                populateSplitPagesTable(data.files);
+            } else {
+                console.error('Failed to fetch split pages:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching split pages:', error);
+        });
+    }
+    
+    /**
+     * Populates the table with split page information
+     * @param {Array} files - Array of file objects containing details of split pages
+     */
+    function populateSplitPagesTable(files) {
+        const tableContainer = document.getElementById('split-pages-table-container');
+        const tableBody = document.getElementById('split-pages-table-body');
+        
+        if (!tableContainer || !tableBody) {
+            return;
+        }
+        
+        // Clear any existing content
+        tableBody.innerHTML = '';
+        
+        // Sort files by page number if available
+        const sortedFiles = [...files].sort((a, b) => {
+            const pageA = a.page_number || parseInt(a.filename.match(/page_(\d+)/)?.[1] || '0');
+            const pageB = b.page_number || parseInt(b.filename.match(/page_(\d+)/)?.[1] || '0');
+            return pageA - pageB;
+        });
+        
+        // Add a row for each file
+        sortedFiles.forEach(file => {
+            // Format file size
+            const size = file.size_formatted || formatFileSize(file.size);
+            
+            // Generate download URL for individual file
+            let downloadUrl;
+            if (file.url) {
+                // If the file already has a URL, use it
+                downloadUrl = file.url;
+            } else {
+                // Otherwise construct a download URL
+                const pageMatch = file.filename.match(/page_(\d+)/);
+                const pageNumber = pageMatch ? pageMatch[1] : '1';
+                
+                // Create URL based on filename
+                downloadUrl = `/download/${file.filename}`;
+            }
+            
+            // Create row
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-surface-300 transition-colors duration-300';
+            
+            // File name cell
+            const nameCell = document.createElement('td');
+            nameCell.className = 'px-4 py-3 whitespace-nowrap';
+            nameCell.innerHTML = `
+                <div class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+                    </svg>
+                    <a href="${downloadUrl}" class="text-sm font-medium text-white hover:text-primary-300 truncate max-w-xs transition-colors duration-300 cursor-pointer flex items-center">
+                        ${file.filename}
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 text-primary-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                </div>
+            `;
+            
+            // File size cell
+            const sizeCell = document.createElement('td');
+            sizeCell.className = 'px-4 py-3 whitespace-nowrap text-right';
+            sizeCell.innerHTML = `<div class="text-sm text-gray-300">${size}</div>`;
+            
+            // Add cells to row
+            row.appendChild(nameCell);
+            row.appendChild(sizeCell);
+            
+            // Add row to table
+            tableBody.appendChild(row);
+        });
+        
+        // Show the table container
+        tableContainer.classList.remove('hidden');
     }
     
     // Set up event listeners

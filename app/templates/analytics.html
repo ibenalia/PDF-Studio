@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}Web Vitals Analytics - PDF Studio{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .metric-card {
+        @apply bg-surface-400 rounded-lg p-4 shadow-md transition-transform hover:scale-102;
+    }
+    .metric-value {
+        @apply text-3xl font-bold text-primary-400;
+    }
+    .metric-title {
+        @apply text-sm text-gray-400 uppercase tracking-wider font-semibold;
+    }
+    .metric-description {
+        @apply text-xs text-gray-500 mt-1;
+    }
+    .good {
+        @apply text-green-500;
+    }
+    .needs-improvement {
+        @apply text-yellow-500;
+    }
+    .poor {
+        @apply text-red-500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-2xl font-bold text-gray-100 mb-6">Web Vitals Analytics</h1>
+    
+    <!-- Date selector -->
+    <div class="mb-8 bg-surface-400 rounded-lg p-4">
+        <h2 class="text-lg font-semibold text-gray-200 mb-3">Available Reports</h2>
+        <div id="reports-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div class="flex space-x-4">
+                <div class="flex-1 space-y-4 py-1">
+                    <div class="h-4 bg-surface-300 rounded w-3/4"></div>
+                    <div class="space-y-2">
+                        <div class="h-4 bg-surface-300 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div id="summary-cards" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" style="display: none;">
+        <div class="metric-card">
+            <div class="metric-title">LCP</div>
+            <div id="lcp-value" class="metric-value">--</div>
+            <div class="metric-description">Largest Contentful Paint</div>
+            <div id="lcp-rating" class="text-xs mt-1">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">CLS</div>
+            <div id="cls-value" class="metric-value">--</div>
+            <div class="metric-description">Cumulative Layout Shift</div>
+            <div id="cls-rating" class="text-xs mt-1">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">FID</div>
+            <div id="fid-value" class="metric-value">--</div>
+            <div class="metric-description">First Input Delay</div>
+            <div id="fid-rating" class="text-xs mt-1">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">INP</div>
+            <div id="inp-value" class="metric-value">--</div>
+            <div class="metric-description">Interaction to Next Paint</div>
+            <div id="inp-rating" class="text-xs mt-1">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">TTFB</div>
+            <div id="ttfb-value" class="metric-value">--</div>
+            <div class="metric-description">Time to First Byte</div>
+            <div id="ttfb-rating" class="text-xs mt-1">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">FCP</div>
+            <div id="fcp-value" class="metric-value">--</div>
+            <div class="metric-description">First Contentful Paint</div>
+            <div id="fcp-rating" class="text-xs mt-1">--</div>
+        </div>
+    </div>
+    
+    <!-- Charts -->
+    <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" style="display: none;">
+        <div class="bg-surface-400 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-200 mb-3">Core Web Vitals by Page</h3>
+            <canvas id="core-vitals-chart" class="w-full"></canvas>
+        </div>
+        <div class="bg-surface-400 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-200 mb-3">Performance Metrics Distribution</h3>
+            <canvas id="metrics-distribution-chart" class="w-full"></canvas>
+        </div>
+    </div>
+    
+    <!-- Raw Data -->
+    <div id="raw-data-container" class="bg-surface-400 rounded-lg p-4 mb-6" style="display: none;">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-lg font-semibold text-gray-200">Raw Data</h3>
+            <button id="toggle-raw-data" class="text-sm bg-surface-300 hover:bg-surface-200 px-3 py-1 rounded">Show Data</button>
+        </div>
+        <div id="raw-data" class="overflow-x-auto" style="display: none;">
+            <pre id="raw-data-content" class="text-xs text-gray-300 p-3 bg-surface-500 rounded"></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch available reports
+        fetch('/api/analytics/reports')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderReportsList(data.reports);
+                } else {
+                    console.error('Error fetching reports:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching reports:', error);
+            });
+            
+        // Toggle raw data visibility
+        document.getElementById('toggle-raw-data').addEventListener('click', function() {
+            const rawData = document.getElementById('raw-data');
+            const button = document.getElementById('toggle-raw-data');
+            
+            if (rawData.style.display === 'none') {
+                rawData.style.display = 'block';
+                button.textContent = 'Hide Data';
+            } else {
+                rawData.style.display = 'none';
+                button.textContent = 'Show Data';
+            }
+        });
+    });
+    
+    function renderReportsList(reports) {
+        const reportsListEl = document.getElementById('reports-list');
+        reportsListEl.innerHTML = '';
+        
+        if (reports.length === 0) {
+            reportsListEl.innerHTML = '<div class="col-span-full text-center text-gray-400">No reports available yet. Start browsing the site to generate web vitals data.</div>';
+            return;
+        }
+        
+        // Sort reports by date (newest first)
+        reports.sort((a, b) => b.date.localeCompare(a.date));
+        
+        reports.forEach(report => {
+            const reportCard = document.createElement('div');
+            reportCard.className = 'bg-surface-300 rounded-lg p-3 cursor-pointer hover:bg-surface-200 transition-colors';
+            reportCard.innerHTML = `
+                <div class="font-semibold text-primary-400">${formatDate(report.date)}</div>
+                <div class="text-xs text-gray-400">Metrics: ${report.metrics_count}</div>
+                <div class="text-xs text-gray-500">${formatFileSize(report.size)}</div>
+            `;
+            
+            reportCard.addEventListener('click', () => {
+                loadReportData(report.date);
+                
+                // Highlight selected card
+                document.querySelectorAll('#reports-list > div').forEach(el => {
+                    el.classList.remove('ring-2', 'ring-primary-400');
+                });
+                reportCard.classList.add('ring-2', 'ring-primary-400');
+            });
+            
+            reportsListEl.appendChild(reportCard);
+            
+            // Load the most recent report by default
+            if (reportsListEl.children.length === 1) {
+                reportCard.click();
+            }
+        });
+    }
+    
+    function loadReportData(date) {
+        fetch(`/api/analytics/reports/${date}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderMetricsData(data);
+                } else {
+                    console.error('Error fetching report data:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching report data:', error);
+            });
+    }
+    
+    function renderMetricsData(data) {
+        // Show containers
+        document.getElementById('summary-cards').style.display = 'grid';
+        document.getElementById('charts-container').style.display = 'grid';
+        document.getElementById('raw-data-container').style.display = 'block';
+        
+        // Populate raw data
+        document.getElementById('raw-data-content').textContent = JSON.stringify(data, null, 2);
+        
+        // Calculate averages for each metric type
+        const metrics = data.metrics_by_type;
+        const averages = {};
+        
+        for (const type in metrics) {
+            const values = metrics[type].map(m => m.value);
+            const sum = values.reduce((a, b) => a + b, 0);
+            averages[type] = values.length > 0 ? sum / values.length : 0;
+        }
+        
+        // Update summary cards
+        updateMetricCard('lcp', averages['LCP'], metrics['LCP']);
+        updateMetricCard('cls', averages['CLS'], metrics['CLS']);
+        updateMetricCard('fid', averages['FID'], metrics['FID']);
+        updateMetricCard('inp', averages['INP'], metrics['INP']);
+        updateMetricCard('ttfb', averages['TTFB'], metrics['TTFB']);
+        updateMetricCard('fcp', averages['FCP'], metrics['FCP']);
+        
+        // Create charts
+        createCoreVitalsChart(data);
+        createMetricsDistributionChart(data);
+    }
+    
+    function updateMetricCard(id, average, metrics) {
+        if (!metrics || !average) {
+            document.getElementById(`${id}-value`).textContent = 'N/A';
+            document.getElementById(`${id}-rating`).textContent = 'No data';
+            return;
+        }
+        
+        const valueEl = document.getElementById(`${id}-value`);
+        const ratingEl = document.getElementById(`${id}-rating`);
+        
+        // Format value appropriately
+        if (id === 'cls') {
+            valueEl.textContent = average.toFixed(3);
+        } else {
+            valueEl.textContent = `${Math.round(average)}ms`;
+        }
+        
+        // Determine rating based on the most recent metric
+        let rating = '';
+        if (metrics.length > 0) {
+            rating = metrics[metrics.length - 1].rating || 'unknown';
+        }
+        
+        ratingEl.textContent = rating.charAt(0).toUpperCase() + rating.slice(1);
+        ratingEl.className = `text-xs mt-1 ${rating}`;
+    }
+    
+    function createCoreVitalsChart(data) {
+        const canvas = document.getElementById('core-vitals-chart');
+        const ctx = canvas.getContext('2d');
+        
+        // Clear any existing chart
+        if (window.coreVitalsChart) {
+            window.coreVitalsChart.destroy();
+        }
+        
+        // Prepare data
+        const pages = {};
+        
+        // Collect page paths
+        for (const type in data.metrics_by_type) {
+            data.metrics_by_type[type].forEach(metric => {
+                if (metric.page && !pages[metric.page]) {
+                    pages[metric.page] = {
+                        LCP: [],
+                        CLS: [],
+                        FID: []
+                    };
+                }
+                
+                if (metric.page && (type === 'LCP' || type === 'CLS' || type === 'FID')) {
+                    pages[metric.page][type].push(metric.value);
+                }
+            });
+        }
+        
+        // Calculate averages for each page
+        const pageLabels = [];
+        const lcpData = [];
+        const clsData = [];
+        const fidData = [];
+        
+        for (const page in pages) {
+            pageLabels.push(formatPagePath(page));
+            
+            const lcpValues = pages[page]['LCP'];
+            lcpData.push(lcpValues.length > 0 ? lcpValues.reduce((a, b) => a + b, 0) / lcpValues.length : 0);
+            
+            const clsValues = pages[page]['CLS'];
+            clsData.push(clsValues.length > 0 ? clsValues.reduce((a, b) => a + b, 0) / clsValues.length : 0);
+            
+            const fidValues = pages[page]['FID'];
+            fidData.push(fidValues.length > 0 ? fidValues.reduce((a, b) => a + b, 0) / fidValues.length : 0);
+        }
+        
+        // Create chart
+        window.coreVitalsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: pageLabels,
+                datasets: [
+                    {
+                        label: 'LCP (ms)',
+                        data: lcpData,
+                        backgroundColor: 'rgba(28, 171, 194, 0.7)',
+                        borderColor: 'rgba(28, 171, 194, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'FID (ms)',
+                        data: fidData,
+                        backgroundColor: 'rgba(234, 88, 12, 0.7)',
+                        borderColor: 'rgba(234, 88, 12, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'CLS',
+                        data: clsData,
+                        backgroundColor: 'rgba(139, 92, 246, 0.7)',
+                        borderColor: 'rgba(139, 92, 246, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Time (ms)',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        max: Math.max(...clsData) * 1.2 || 0.25,
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'CLS Value',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function createMetricsDistributionChart(data) {
+        const canvas = document.getElementById('metrics-distribution-chart');
+        const ctx = canvas.getContext('2d');
+        
+        // Clear any existing chart
+        if (window.metricsDistributionChart) {
+            window.metricsDistributionChart.destroy();
+        }
+        
+        // Count ratings for each metric type
+        const metrics = ['LCP', 'CLS', 'FID', 'FCP', 'TTFB', 'INP'];
+        const goodCount = [];
+        const needsImprovementCount = [];
+        const poorCount = [];
+        
+        metrics.forEach(metric => {
+            const metricData = data.metrics_by_type[metric] || [];
+            
+            let good = 0;
+            let needsImprovement = 0;
+            let poor = 0;
+            
+            metricData.forEach(m => {
+                if (m.rating === 'good') good++;
+                else if (m.rating === 'needs-improvement') needsImprovement++;
+                else if (m.rating === 'poor') poor++;
+            });
+            
+            goodCount.push(good);
+            needsImprovementCount.push(needsImprovement);
+            poorCount.push(poor);
+        });
+        
+        // Create chart
+        window.metricsDistributionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: metrics,
+                datasets: [
+                    {
+                        label: 'Good',
+                        data: goodCount,
+                        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                        borderColor: 'rgba(34, 197, 94, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Needs Improvement',
+                        data: needsImprovementCount,
+                        backgroundColor: 'rgba(234, 179, 8, 0.7)',
+                        borderColor: 'rgba(234, 179, 8, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Poor',
+                        data: poorCount,
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: 'rgba(239, 68, 68, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Utility functions
+    function formatDate(dateStr) {
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${parseInt(parts[2])} ${months[parseInt(parts[1])-1]} ${parts[0]}`;
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function formatPagePath(path) {
+        if (path === '/') return 'Home';
+        
+        // Remove leading slash and replace remaining slashes with spaces
+        return path.replace(/^\//, '').replace(/\//g, ' / ');
+    }
+</script>
+{% endblock %} 

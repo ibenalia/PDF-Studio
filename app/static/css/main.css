@@ -1,33 +1,49 @@
 /* Custom styles beyond Tailwind */
 
 /* Base styles */
+/* Animations désactivées pour améliorer les performances
 @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    0% { opacity: 0; }
+    20% { opacity: 0.1; }
+    60% { opacity: 0.5; }
+    100% { opacity: 1; }
 }
 
 @keyframes fade-in-up {
-    from { 
+    0% { 
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(15px);
     }
-    to { 
+    20% { 
+        opacity: 0.1;
+        transform: translateY(12px);
+    }
+    60% { 
+        opacity: 0.5;
+        transform: translateY(5px);
+    }
+    100% { 
         opacity: 1;
         transform: translateY(0);
     }
 }
+*/
 
+/* Animations désactivées - les éléments apparaissent immédiatement */
 .animate-fade-in {
-    animation: fade-in 0.5s ease-in-out;
+    /* animation: fade-in 0.8s cubic-bezier(0.4, 0, 0.2, 1); */
+    opacity: 1;
 }
 
 .animate-fade-in-up {
-    animation: fade-in-up 0.5s ease-out;
+    /* animation: fade-in-up 0.8s cubic-bezier(0.4, 0, 0.2, 1); */
+    opacity: 1;
+    transform: translateY(0);
 }
 
 /* Card hover effects */
 .card-hover {
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card-hover:hover {

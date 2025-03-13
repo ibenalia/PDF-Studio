@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory, session, abort
 from werkzeug.utils import secure_filename
 import json
 import time
@@ -9,6 +9,7 @@ from io import BytesIO
 from app.api import pdf_processor
 import logging
 import datetime
+from app.auth import requires_auth, get_client_ip, rate_limit, validate_csrf_token, sanitize_redirect_url
 
 # Configurer le logging
 logger = logging.getLogger(__name__)
@@ -22,12 +23,12 @@ def allowed_file(filename, extensions=None):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensions
 
 def generate_unique_filename(filename):
-    """Generate a unique filename while preserving the original extension."""
-    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-    return f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+    """Génère un nom de fichier unique basé sur UUID"""
+    name, ext = os.path.splitext(filename)
+    return f"{uuid.uuid4().hex}{ext}"
 
-# Ensure upload directory exists
 def ensure_dir(directory):
+    """Crée un répertoire s'il n'existe pas déjà"""
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -49,6 +50,12 @@ def index():
 
 @main.route('/upload', methods=['POST'])
 def upload_file():
+    # Vérifier si l'IP est limitée
+    client_ip = get_client_ip()
+    if rate_limit(f"upload:{client_ip}", limit=30, period=60):
+        logger.warning(f"Rate limit dépassé pour l'upload depuis {client_ip}")
+        return jsonify({'error': 'Trop de requêtes, veuillez réessayer plus tard.'}), 429
+    
     logger.info("Entrée dans upload_file")
     if 'file' not in request.files:
         logger.error("Pas de fichier dans request.files")
@@ -61,9 +68,20 @@ def upload_file():
         logger.error("Pas de fichier sélectionné")
         return jsonify({'error': 'No file selected'}), 400
     
+    # Vérifier le token CSRF pour les requêtes POST
+    csrf_token = request.form.get('csrf_token')
+    if not validate_csrf_token(csrf_token):
+        logger.warning(f"Tentative d'upload avec un token CSRF invalide depuis {client_ip}")
+        return jsonify({'error': 'Invalid CSRF token'}), 403
+    
     uploaded_files = []
     for file in files:
         if file and allowed_file(file.filename):
+            # Validation supplémentaire du type de fichier
+            if file.filename.lower().endswith('.pdf') and not pdf_processor.is_valid_pdf(file):
+                logger.warning(f"Fichier PDF invalide rejeté: {file.filename}")
+                continue
+                
             filename = secure_filename(file.filename)
             unique_filename = generate_unique_filename(filename)
             file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], unique_filename)
@@ -234,180 +252,28 @@ def rotate_pdf():
 
 @main.route('/download/<filename>')
 def download_file(filename):
+    # Vérifier si le nom de fichier est sécurisé
+    if not secure_filename(filename) == filename:
+        logger.warning(f"Tentative d'accès à un fichier non sécurisé: {filename}")
+        abort(404)
+         
     return send_from_directory(current_app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
 
-@main.route('/api/pdf-info', methods=['POST'])
-def pdf_info():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    
-    if not file or not allowed_file(file.filename, {'pdf'}):
-        return jsonify({'error': 'Please upload a valid PDF file'}), 400
-    
-    try:
-        # Déléguer le traitement au composant C++
-        info = pdf_processor.get_pdf_info(file)
-        return jsonify(info)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@main.route('/download-all')
+def download_all_files():
+    """Route principale qui redirige vers l'API pour le téléchargement de plusieurs fichiers"""
+    # Récupérer les paramètres pour les transmettre à l'API
+    files_param = request.args.get('files', '')
+    clean_param = request.args.get('clean', 'false')
+    return redirect(url_for('api.download_all_files', files=files_param, clean=clean_param))
 
-@main.route('/api/merge-pdf', methods=['POST'])
-def api_merge_pdf():
-    logger.info("API merge-pdf endpoint called")
-    logger.info(f"Request files keys: {list(request.files.keys())}")
-    
-    if 'files[]' not in request.files and 'files' not in request.files:
-        logger.error("No files provided in request")
-        return jsonify({'error': 'No files provided'}), 400
-    
-    # Récupérer les fichiers selon le format de la requête
-    if 'files[]' in request.files:
-        files = request.files.getlist('files[]')
-    else:
-        files = request.files.getlist('files')
-    
-    logger.info(f"Number of files received: {len(files)}")
-    
-    if not files or len(files) < 2:
-        logger.error(f"Not enough files: {len(files)}")
-        return jsonify({'error': 'At least two PDF files are required'}), 400
-    
-    for file in files:
-        if not file or not allowed_file(file.filename, {'pdf'}):
-            return jsonify({'error': 'All files must be valid PDFs'}), 400
-    
-    try:
-        # Déléguer le traitement au composant C++
-        result = pdf_processor.merge_pdfs(files)
-        return jsonify({
-            'success': True,
-            'message': 'PDFs merged successfully',
-            'download_url': result['url'],
-            'filename': result.get('filename', ''),
-            'is_zip': False
-        })
-    except Exception as e:
-        logger.error(f"Error in merge_pdf: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@main.route('/api/split-pdf', methods=['POST'])
-def api_split_pdf():
-    logger.info("API split-pdf endpoint called")
-    logger.info(f"Request files keys: {list(request.files.keys())}")
-    
-    if 'file' not in request.files and 'file[]' not in request.files:
-        logger.error("No file provided in request")
-        return jsonify({'error': 'No file provided'}), 400
-    
-    # Récupérer le fichier selon le format de la requête
-    if 'file' in request.files:
-        file = request.files['file']
-    else:
-        # Prendre le premier élément car split n'a besoin que d'un seul fichier
-        file = request.files.getlist('file[]')[0]
-    
-    logger.info(f"Received file: {file.filename if file else 'None'}")
-    
-    if not file or not allowed_file(file.filename, {'pdf'}):
-        logger.error(f"Invalid file: {file.filename if file else 'None'}")
-        return jsonify({'error': 'Please upload a valid PDF file'}), 400
-    
-    try:
-        # Déléguer le traitement au composant C++ pour un split par page
-        results = pdf_processor.split_pdf(file, "all")
-        
-        # Créer un fichier ZIP pour tous les fichiers PDF (une page par fichier)
-        zip_filename = f"split_{uuid.uuid4().hex}.zip"
-        zip_path = os.path.join(current_app.config['PROCESSED_FOLDER'], zip_filename)
-        
-        with zipfile.ZipFile(zip_path, 'w') as zipf:
-            for result in results:
-                zipf.write(result['path'], os.path.basename(result['path']))
-        
-        return jsonify({
-            'success': True,
-            'message': 'PDF split successfully',
-            'download_url': f"/download/{zip_filename}",
-            'is_zip': True,
-            'files_count': len(results)
-        })
-    except Exception as e:
-        logger.error(f"Error in split_pdf: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@main.route('/api/compress-pdf', methods=['POST'])
-def api_compress_pdf():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    
-    if not file or not allowed_file(file.filename, {'pdf'}):
-        return jsonify({'error': 'Please upload a valid PDF file'}), 400
-    
-    quality = request.form.get('quality', 'medium')
-    
-    try:
-        # Déléguer le traitement au composant C++
-        result = pdf_processor.compress_pdf(file, quality)
-        return jsonify({
-            'success': True,
-            'message': 'PDF compressed successfully',
-            'download_url': result['url']
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@main.route('/api/rotate-pdf', methods=['POST'])
-def api_rotate_pdf():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    
-    if not file or not allowed_file(file.filename, {'pdf'}):
-        return jsonify({'error': 'Please upload a valid PDF file'}), 400
-    
-    degrees = request.form.get('degrees', '90')
-    
-    try:
-        degrees = int(degrees)
-        # Déléguer le traitement au composant C++
-        result = pdf_processor.rotate_pdf(file, degrees)
-        return jsonify({
-            'success': True,
-            'message': 'PDF rotated successfully',
-            'download_url': result['url']
-        })
-    except ValueError:
-        return jsonify({'error': 'Rotation degrees must be a valid number'}), 400
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-def format_file_size(size_bytes):
-    """Format the file size as a human-readable string."""
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+@main.route('/download-session')
+def download_session_files():
+    """Route principale qui redirige vers l'API pour le téléchargement de session"""
+    # Récupérer les paramètres pour les transmettre à l'API
+    session_id = request.args.get('session_id', '')
+    clean_param = request.args.get('clean', 'false')
+    return redirect(url_for('api.download_session_files', session_id=session_id, clean=clean_param))
 
 @main.route('/split-pdf')
 def split_pdf_page():
@@ -428,6 +294,8 @@ def my_files():
     # Obtenir le chemin du répertoire de traitement
     processed_dir = pdf_processor.get_processed_dir()
     
+    print(f"MY FILES: Checking for files in directory: {processed_dir}")
+    
     # Liste pour stocker les informations des fichiers
     files = []
     
@@ -439,6 +307,7 @@ def my_files():
         # Parcourir tous les fichiers du répertoire
         for filename in os.listdir(processed_dir):
             if filename.endswith('.pdf') or filename.endswith('.zip'):
+                print(f"MY FILES: Found file: {filename}")
                 file_path = os.path.join(processed_dir, filename)
                 file_stats = os.stat(file_path)
                 
@@ -448,15 +317,15 @@ def my_files():
                 
                 # Formater le temps écoulé
                 if time_since_creation.days > 0:
-                    time_elapsed = f"{time_since_creation.days} jour{'s' if time_since_creation.days > 1 else ''}"
+                    time_elapsed = f"{time_since_creation.days} day{'s' if time_since_creation.days > 1 else ''}"
                 elif time_since_creation.seconds // 3600 > 0:
                     hours = time_since_creation.seconds // 3600
-                    time_elapsed = f"{hours} heure{'s' if hours > 1 else ''}"
+                    time_elapsed = f"{hours} hour{'s' if hours > 1 else ''}"
                 elif time_since_creation.seconds // 60 > 0:
                     minutes = time_since_creation.seconds // 60
                     time_elapsed = f"{minutes} minute{'s' if minutes > 1 else ''}"
                 else:
-                    time_elapsed = "quelques secondes"
+                    time_elapsed = "a few seconds"
                 
                 # Créer une structure avec les informations du fichier
                 file_info = {
@@ -464,9 +333,9 @@ def my_files():
                     'display_name': filename.split('_', 1)[1] if '_' in filename else filename,
                     'size': file_stats.st_size,
                     'size_formatted': pdf_processor.format_file_size(file_stats.st_size),
-                    'creation_time': creation_time.strftime('%d/%m/%Y à %H:%M'),
+                    'creation_time': creation_time.strftime('%m/%d/%Y at %H:%M'),
                     'time_elapsed': time_elapsed,
-                    'download_url': f"/api/download/{filename}",
+                    'download_url': f"/download/{filename}",
                     'is_zip': filename.endswith('.zip'),
                     'is_split_page': '_page_' in filename and filename.endswith('.pdf')
                 }
@@ -475,20 +344,24 @@ def my_files():
         
         # Identifier les ZIP de fractionnement
         split_zips = [f for f in all_files if f['is_zip'] and f['filename'].startswith('split_')]
+        print(f"MY FILES: Found {len(split_zips)} split ZIP files: {[z['filename'] for z in split_zips]}")
         
         # Identifier les pages individuelles de fractionnement
         split_pages = [f for f in all_files if f['is_split_page']]
+        print(f"MY FILES: Found {len(split_pages)} split pages")
         
         # Filtrer les fichiers pour exclure les pages individuelles
         # si un fichier ZIP de fractionnement existe dans la même période
         filtered_files = []
         for file in all_files:
-            # Toujours garder les ZIP et les fichiers qui ne sont pas des pages individuelles
+            # Toujours inclure les fichiers ZIP et les fichiers qui ne sont pas des pages individuelles
             if file['is_zip'] or not file['is_split_page']:
                 filtered_files.append(file)
+                print(f"MY FILES: Including file in filtered list: {file['filename']}")
             # Pour les pages individuelles, ne les garder que si elles n'ont pas de ZIP correspondant créé à peu près au même moment
             elif file['is_split_page']:
-                # On ne garde pas les pages individuelles
+                # On ne garde pas les pages individuelles (comportement existant)
+                print(f"MY FILES: Excluding split page from filtered list: {file['filename']}")
                 continue
         
         files = filtered_files
@@ -496,4 +369,72 @@ def my_files():
         # Trier les fichiers par date de création (les plus récents d'abord)
         files.sort(key=lambda x: x['creation_time'], reverse=True)
     
-    return render_template('my_files.html', files=files) 
+    return render_template('my_files.html', files=files)
+
+@main.route('/admin')
+@requires_auth
+def admin_dashboard():
+    """Page d'administration sécurisée"""
+    # Récupérer les statistiques du système
+    stats = {
+        'upload_count': 0,
+        'processed_count': 0,
+        'disk_usage': 0,
+        'disk_usage_formatted': '0 MB'
+    }
+    
+    # Compter les fichiers
+    try:
+        upload_dir = current_app.config['UPLOAD_FOLDER']
+        processed_dir = current_app.config['PROCESSED_FOLDER']
+        
+        if os.path.exists(upload_dir):
+            stats['upload_count'] = len([f for f in os.listdir(upload_dir) if os.path.isfile(os.path.join(upload_dir, f))])
+            
+        if os.path.exists(processed_dir):
+            stats['processed_count'] = len([f for f in os.listdir(processed_dir) if os.path.isfile(os.path.join(processed_dir, f))])
+            
+        # Calculer l'utilisation du disque
+        stats['disk_usage'] = sum(os.path.getsize(os.path.join(upload_dir, f)) for f in os.listdir(upload_dir) if os.path.isfile(os.path.join(upload_dir, f)))
+        stats['disk_usage'] += sum(os.path.getsize(os.path.join(processed_dir, f)) for f in os.listdir(processed_dir) if os.path.isfile(os.path.join(processed_dir, f)))
+        stats['disk_usage_formatted'] = pdf_processor.format_file_size(stats['disk_usage'])
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des statistiques: {str(e)}")
+    
+    return render_template('admin/dashboard.html', stats=stats)
+
+@main.route('/admin/clean-files', methods=['POST'])
+@requires_auth
+def admin_clean_files():
+    """Nettoyer les fichiers anciens (action d'administration)"""
+    # Vérifier le token CSRF
+    csrf_token = request.form.get('csrf_token')
+    if not validate_csrf_token(csrf_token):
+        return redirect(url_for('main.admin_dashboard'))
+    
+    try:
+        # Nettoyer les fichiers
+        pdf_processor.clean_old_sessions(max_age_hours=1)  # Nettoyer les fichiers de plus d'une heure
+        flash('Les fichiers ont été nettoyés avec succès.', 'success')
+    except Exception as e:
+        logger.error(f"Erreur lors du nettoyage des fichiers: {str(e)}")
+        flash(f'Erreur lors du nettoyage des fichiers: {str(e)}', 'error')
+    
+    return redirect(url_for('main.admin_dashboard'))
+
+@main.route('/analytics/web-vitals')
+def web_vitals_analytics():
+    """View web-vitals analytics dashboard"""
+    return render_template('analytics.html')
+
+@main.errorhandler(404)
+def page_not_found(e):
+    return render_template('error.html', error="Page non trouvée"), 404
+
+@main.errorhandler(500)
+def server_error(e):
+    return render_template('error.html', error="Erreur interne du serveur"), 500
+
+@main.errorhandler(403)
+def forbidden(e):
+    return render_template('error.html', error="Accès interdit"), 403 

@@ -9,6 +9,8 @@ from flask import current_app, session
 from werkzeug.utils import secure_filename
 import logging
 import time
+import re
+import magic
 
 logger = logging.getLogger(__name__)
 
@@ -36,67 +38,80 @@ def get_session_dir():
 
 def get_temp_dir():
     """
-    Retourne le répertoire temporaire
+    Crée et retourne un répertoire temporaire unique pour cette session
+    
+    Returns:
+        str: Chemin vers le répertoire temporaire
     """
-    temp_dir = os.path.join(current_app.config['DATA_DIR'], 'temp')
+    session_id = str(uuid.uuid4())
+    temp_dir = os.path.join(current_app.config['DATA_DIR'], 'temp', session_id)
     ensure_dir(temp_dir)
     return temp_dir
 
 def get_processed_dir():
     """
-    Retourne le répertoire des fichiers traités
+    Retourne le répertoire pour les fichiers traités
+    
+    Returns:
+        str: Chemin vers le répertoire des fichiers traités
     """
     processed_dir = os.path.join(current_app.config['DATA_DIR'], 'processed')
     ensure_dir(processed_dir)
     return processed_dir
 
-def clean_old_sessions(max_age_hours=24):
+def is_valid_pdf(file_stream):
     """
-    Nettoie les fichiers plus anciens que max_age_hours
+    Vérifie si un fichier est un PDF valide en inspectant son contenu
+
+    Args:
+        file_stream: Flux du fichier à vérifier
+
+    Returns:
+        bool: True si le fichier est un PDF valide, False sinon
     """
     try:
-        processed_dir = os.path.join(current_app.config['DATA_DIR'], 'processed')
-        if not os.path.exists(processed_dir):
-            return
-            
-        now = time.time()
-        for filename in os.listdir(processed_dir):
-            file_path = os.path.join(processed_dir, filename)
-            if os.path.isfile(file_path):
-                # Vérifier l'âge du fichier
-                mtime = os.path.getmtime(file_path)
-                age_hours = (now - mtime) / 3600
-                
-                if age_hours > max_age_hours:
-                    logger.info(f"Nettoyage de l'ancien fichier: {filename} (âge: {age_hours:.1f} heures)")
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        logger.error(f"Erreur lors du nettoyage du fichier {filename}: {e}")
-                        
-        # Nettoyer également le dossier temp
-        temp_dir = os.path.join(current_app.config['DATA_DIR'], 'temp')
-        if os.path.exists(temp_dir):
-            for filename in os.listdir(temp_dir):
-                file_path = os.path.join(temp_dir, filename)
-                if os.path.isfile(file_path):
-                    mtime = os.path.getmtime(file_path)
-                    age_hours = (now - mtime) / 3600
-                    
-                    if age_hours > max_age_hours:
-                        try:
-                            os.remove(file_path)
-                        except Exception as e:
-                            logger.error(f"Erreur lors du nettoyage du fichier temporaire {filename}: {e}")
+        # Sauvegarder la position actuelle dans le flux
+        current_position = file_stream.tell()
+        
+        # Lire les premiers octets pour déterminer le type MIME
+        file_stream.seek(0)
+        mime = magic.from_buffer(file_stream.read(4096), mime=True)
+        
+        # Restaurer la position dans le flux
+        file_stream.seek(current_position)
+        
+        # Vérifier si c'est un PDF
+        return mime == 'application/pdf'
     except Exception as e:
-        logger.error(f"Erreur lors du nettoyage des anciens fichiers: {e}")
+        logger.error(f"Erreur lors de la validation du PDF: {str(e)}")
+        return False
 
-def clean_session_files(session_id=None):
+def sanitize_command_arg(arg):
     """
-    Fonction conservée pour compatibilité
+    Sanitize un argument de commande pour éviter les injections
+
+    Args:
+        arg: L'argument à sanitizer
+
+    Returns:
+        str: L'argument sanitizé
+
+    Raises:
+        ValueError: Si l'argument contient des caractères dangereux
     """
-    # Cette fonction ne fait rien car nous ne gérons plus les fichiers par session
-    pass
+    if not isinstance(arg, str):
+        raise ValueError(f"L'argument n'est pas une chaîne de caractères: {arg}")
+    
+    # Vérifier les caractères dangereux
+    dangerous_chars = ['|', '&', ';', '$', '`', '>', '<', '*', '?', '(', ')', '[', ']', '{', '}', '\\', '\'', '"', '\n', '\r']
+    if any(c in arg for c in dangerous_chars):
+        raise ValueError(f"L'argument contient des caractères interdits: {arg}")
+    
+    # Limite la longueur des arguments
+    if len(arg) > 1024:
+        raise ValueError(f"L'argument est trop long: {len(arg)} caractères")
+    
+    return arg
 
 def get_pdfeditor_path():
     """Retourne le chemin vers l'exécutable pdfeditor"""
@@ -118,7 +133,16 @@ def run_pdfeditor(cmd_args):
     Returns:
         Tuple (return_code, stdout, stderr)
     """
-    cmd = [get_pdfeditor_path()] + cmd_args
+    # Sanitize tous les arguments
+    sanitized_args = []
+    try:
+        for arg in cmd_args:
+            sanitized_args.append(sanitize_command_arg(arg))
+    except ValueError as e:
+        logger.error(f"Argument invalide pour pdfeditor: {str(e)}")
+        return -1, "", f"Argument invalide détecté: {str(e)}"
+    
+    cmd = [get_pdfeditor_path()] + sanitized_args
     
     logger.info(f"Exécution de la commande: {' '.join(cmd)}")
     
@@ -135,13 +159,14 @@ def run_pdfeditor(cmd_args):
             return -1, "", f"L'exécutable pdfeditor n'est pas exécutable: {pdfeditor_path}"
         
         # Définir un timeout pour éviter les processus bloqués
-        timeout = 300  # 5 minutes
+        timeout = 60  # 1 minute au lieu de 5
         
         process = subprocess.Popen(
             cmd, 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE,
-            universal_newlines=True
+            universal_newlines=True,
+            shell=False  # Éviter l'injection de commandes
         )
         
         try:
@@ -178,84 +203,123 @@ def merge_pdfs(files):
         
     temp_dir = get_temp_dir()
     
-    # Sauvegarder les fichiers d'entrée
-    input_files = []
-    total_input_size = 0
-    file_count = 0
-    
-    # Assurer un nom de fichier unique et sécurisé
-    for file in files:
-        if not file.filename.lower().endswith('.pdf'):
-            continue  # Ignorer les fichiers non-PDF
+    try:
+        # Sauvegarder les fichiers d'entrée
+        input_files = []
+        total_input_size = 0
+        file_count = 0
+        
+        # Assurer un nom de fichier unique et sécurisé
+        for file in files:
+            if not file.filename.lower().endswith('.pdf'):
+                continue  # Ignorer les fichiers non-PDF
+                
+            # Vérifier si le contenu est un PDF valide 
+            if not is_valid_pdf(file):
+                logger.warning(f"Fichier non PDF ignoré: {file.filename}")
+                continue
+                
+            safe_filename = secure_filename(file.filename)
+            input_path = os.path.join(temp_dir, f"{file_count}_{safe_filename}")
+            file.save(input_path)
             
-        safe_filename = secure_filename(file.filename)
-        input_path = os.path.join(temp_dir, f"{file_count}_{safe_filename}")
-        file.save(input_path)
+            # Vérifier si le fichier est valide
+            if os.path.getsize(input_path) == 0:
+                logger.warning(f"Fichier vide ignoré: {safe_filename}")
+                os.remove(input_path)
+                continue
+                
+            input_files.append(input_path)
+            total_input_size += os.path.getsize(input_path)
+            file_count += 1
         
-        # Vérifier si le fichier est valide
-        if os.path.getsize(input_path) == 0:
-            logger.warning(f"Fichier vide ignoré: {safe_filename}")
-            os.remove(input_path)
-            continue
+        if not input_files:
+            raise Exception("Aucun fichier PDF valide trouvé pour la fusion")
             
-        input_files.append(input_path)
-        total_input_size += os.path.getsize(input_path)
-        file_count += 1
-    
-    if not input_files:
-        shutil.rmtree(temp_dir)
-        raise Exception("Aucun fichier PDF valide trouvé pour la fusion")
+        # Générer un nom de fichier de sortie
+        output_filename = f"merged_{uuid.uuid4()}.pdf"
+        output_path = os.path.join(temp_dir, output_filename)
         
-    # Générer un nom de fichier de sortie
-    output_filename = f"merged_{uuid.uuid4()}.pdf"
-    output_path = os.path.join(temp_dir, output_filename)
-    
-    # Préparer les arguments pour l'outil C++
-    cmd_args = ["merge", output_path] + input_files
-    
-    # Exécuter l'outil
-    logger.info(f"Fusion de {len(input_files)} fichiers PDF")
-    returncode, stdout, stderr = run_pdfeditor(cmd_args)
-    
-    if returncode != 0:
-        # Nettoyer
-        shutil.rmtree(temp_dir)
-        logger.error(f"Erreur lors de la fusion des PDFs: {stderr}")
-        raise Exception(f"Erreur lors de la fusion des PDFs: {stderr}")
-    
-    # Vérifier que le fichier de sortie existe
-    if not os.path.exists(output_path):
-        shutil.rmtree(temp_dir)
-        logger.error("Le fichier de sortie n'a pas été créé")
-        raise Exception("Le fichier de sortie n'a pas été créé")
+        # Préparer les arguments pour l'outil C++
+        cmd_args = ["merge", output_path] + input_files
         
-    # Déplacer vers le répertoire des fichiers traités
-    processed_dir = get_processed_dir()
-    final_path = os.path.join(processed_dir, output_filename)
-    shutil.move(output_path, final_path)
+        # Exécuter l'outil
+        logger.info(f"Fusion de {len(input_files)} fichiers PDF")
+        returncode, stdout, stderr = run_pdfeditor(cmd_args)
+        
+        if returncode != 0:
+            # Nettoyer
+            raise Exception(f"Erreur lors de la fusion des PDFs: {stderr}")
+            
+        # Déplacer vers le répertoire des fichiers traités
+        processed_dir = get_processed_dir()
+        final_path = os.path.join(processed_dir, output_filename)
+        shutil.move(output_path, final_path)
+        
+        return {
+            'filename': output_filename,
+            'path': final_path,
+            'url': f"/download/{output_filename}",
+            'size': os.path.getsize(final_path),
+            'page_count': None  # Pourrait être amélioré pour compter les pages
+        }
+    finally:
+        # Nettoyer les fichiers temporaires dans tous les cas
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+
+def clean_old_sessions(max_age_hours=6):
+    """
+    Nettoie les fichiers temporaires et traités qui sont plus anciens que max_age_hours
     
-    # Calculer les statistiques
-    output_size = os.path.getsize(final_path)
-    
-    result = {
-        'filename': output_filename,
-        'path': final_path,
-        'url': f"/download/{output_filename}",
-        'merged_count': len(input_files),
-        'original_filenames': [os.path.basename(f) for f in input_files],
-        'total_input_size': total_input_size,
-        'total_input_size_formatted': format_file_size(total_input_size),
-        'output_size': output_size,
-        'output_size_formatted': format_file_size(output_size)
-    }
-    
-    # Sortie de débogage
-    logger.info(f"Fusion réussie: {len(input_files)} fichiers, taille: {result['output_size_formatted']}")
-    
-    # Nettoyer les fichiers temporaires
-    shutil.rmtree(temp_dir)
-    
-    return result
+    Args:
+        max_age_hours: Durée maximale de conservation des fichiers en heures
+    """
+    try:
+        now = time.time()
+        max_age_seconds = max_age_hours * 3600
+        
+        # Nettoyer les répertoires de données
+        for dir_name in ['temp', 'uploads', 'processed']:
+            dir_path = os.path.join(current_app.config['DATA_DIR'], dir_name)
+            
+            if not os.path.exists(dir_path):
+                continue
+                
+            for filename in os.listdir(dir_path):
+                file_path = os.path.join(dir_path, filename)
+                
+                # Si c'est un répertoire dans temp, supprimer tout le répertoire
+                if os.path.isdir(file_path) and dir_name == 'temp':
+                    try:
+                        dir_age = now - os.path.getmtime(file_path)
+                        if dir_age > max_age_seconds:
+                            shutil.rmtree(file_path)
+                            logger.info(f"Répertoire temporaire nettoyé: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Erreur lors du nettoyage du répertoire {file_path}: {str(e)}")
+                
+                # Si c'est un fichier, vérifier son âge
+                elif os.path.isfile(file_path):
+                    try:
+                        file_age = now - os.path.getmtime(file_path)
+                        if file_age > max_age_seconds:
+                            os.remove(file_path)
+                            logger.info(f"Fichier nettoyé: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Erreur lors du nettoyage du fichier {file_path}: {str(e)}")
+                        
+        return True
+    except Exception as e:
+        logger.error(f"Erreur lors du nettoyage des sessions: {str(e)}")
+        return False
+
+def clean_session_files(session_id=None):
+    """
+    Fonction conservée pour compatibilité
+    """
+    # Cette fonction ne fait rien car nous ne gérons plus les fichiers par session
+    pass
 
 def split_pdf(file, page_range=None, **options):
     """
@@ -263,8 +327,8 @@ def split_pdf(file, page_range=None, **options):
     
     Args:
         file: Objet fichier à diviser
-        page_range: Non utilisé, conservé pour compatibilité
-        **options: Non utilisé, conservé pour compatibilité
+        page_range: Plage de pages à extraire, format: "1,3,5-10"
+        **options: Options avancées
         
     Returns:
         Liste de dictionnaires avec les informations sur les fichiers générés
@@ -286,18 +350,28 @@ def split_pdf(file, page_range=None, **options):
         info_cmd_args = ["info", input_path]
         info_returncode, info_stdout, info_stderr = run_pdfeditor(info_cmd_args)
         
+        page_count = 0
         if info_returncode == 0:
             import json
             info = json.loads(info_stdout)
             if info and 'pageCount' in info:
-                # Créer une plage pour toutes les pages individuelles (1,2,3,...)
-                page_range = ','.join(str(i+1) for i in range(info['pageCount']))
-                logger.info(f"Extraction de pages individuelles: {page_range}")
+                page_count = info['pageCount']
+                
+                # Si aucune plage spécifiée, créer une plage pour toutes les pages
+                if not page_range or page_range == 'all':
+                    # Si le PDF a beaucoup de pages, utiliser plutôt la méthode par lots
+                    if page_count > 200:
+                        logger.info(f"PDF volumineux détecté avec {page_count} pages - utilisation du traitement par lots")
+                        return split_pdf_in_batches(input_path, temp_dir, page_count, **options)
+                    else:
+                        # Pour un nombre raisonnable de pages, créer une plage
+                        page_range = ','.join(str(i+1) for i in range(page_count))
+                        logger.info(f"Extraction de pages individuelles: {page_range}")
         
         if info_returncode != 0:
             logger.warning(f"PDF problématique détecté avec info: {info_stderr}")
             # Le PDF est problématique, nous utiliserons une approche alternative
-            return split_pdf_fallback(input_path, temp_dir, "all", {})
+            return split_pdf_fallback(input_path, temp_dir, "all", options)
     except Exception as e:
         logger.warning(f"Erreur lors de la vérification préalable du PDF: {str(e)}")
         # En cas d'erreur, continuons avec l'approche standard
@@ -305,9 +379,15 @@ def split_pdf(file, page_range=None, **options):
     # Préparer les arguments pour l'outil C++
     cmd_args = ["split", input_path, output_prefix]
     
-    # Si page_range a été défini par info, l'utiliser
+    # Si page_range a été défini, l'utiliser
     if page_range:
         cmd_args.append(page_range)
+    
+    # Vérifier si l'argument n'est pas trop long
+    arg_length = sum(len(arg) for arg in cmd_args)
+    if arg_length > 2000 and page_count > 0:
+        logger.warning(f"Argument trop long pour pdfeditor ({arg_length} caractères) - utilisation du traitement par lots")
+        return split_pdf_in_batches(input_path, temp_dir, page_count, **options)
     
     # Exécuter l'outil
     logger.info(f"Exécution de split_pdf avec les arguments: {cmd_args}")
@@ -318,7 +398,7 @@ def split_pdf(file, page_range=None, **options):
         
         # Si l'outil échoue, essayer l'approche alternative
         logger.info("Tentative avec l'approche alternative pour les PDF problématiques")
-        return split_pdf_fallback(input_path, temp_dir, "all", {})
+        return split_pdf_fallback(input_path, temp_dir, "all", options)
     
     # Déplacer vers le répertoire des fichiers traités
     processed_dir = get_processed_dir()
@@ -356,7 +436,8 @@ def split_pdf(file, page_range=None, **options):
             page_number = file_info.get('page_number', None)
             
             result_files.append({
-                'name': filename,
+                'filename': filename,  # Utiliser 'filename' pour la cohérence
+                'name': filename,      # Conserver 'name' pour la rétrocompatibilité
                 'path': dest_path,
                 'url': download_url,
                 'size': os.path.getsize(dest_path),
@@ -372,7 +453,149 @@ def split_pdf(file, page_range=None, **options):
     except Exception as e:
         logger.error(f"Erreur lors du traitement des fichiers générés: {e}")
         # Essayer l'approche alternative
-        return split_pdf_fallback(input_path, temp_dir, "all", {})
+        return split_pdf_fallback(input_path, temp_dir, "all", options)
+
+def split_pdf_in_batches(input_path, temp_dir, total_pages, **options):
+    """
+    Divise un PDF en fichiers individuels en traitant les pages par lots
+    pour éviter les arguments de ligne de commande trop longs.
+    
+    Args:
+        input_path: Chemin vers le fichier PDF d'entrée
+        temp_dir: Répertoire temporaire pour les opérations
+        total_pages: Nombre total de pages dans le PDF
+        **options: Options avancées
+        
+    Returns:
+        Liste de dictionnaires avec les informations sur les fichiers générés
+    """
+    logger.info(f"Division du PDF en lots pour {total_pages} pages")
+    
+    # Import PyPDF2 pour travailler avec des pages spécifiques
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+    except ImportError:
+        logger.error("PyPDF2 n'est pas installé. Cette bibliothèque est requise pour le traitement par lots.")
+        # Utiliser la méthode de secours complète
+        return split_pdf_fallback(input_path, temp_dir, "all", options)
+    
+    # Taille du lot - nombre de pages à traiter à la fois
+    batch_size = 50  # Nombre de pages par lot
+    
+    # Créer des lots de pages à traiter
+    batches = []
+    for i in range(0, total_pages, batch_size):
+        start_page = i + 1  # Pages commencent à 1
+        end_page = min(i + batch_size, total_pages)
+        batches.append((start_page, end_page))
+    
+    logger.info(f"Traitement du PDF en {len(batches)} lots")
+    
+    result_files = []
+    processed_dir = get_processed_dir()
+    
+    # Traiter chaque lot
+    for batch_index, (start_page, end_page) in enumerate(batches):
+        logger.info(f"Traitement du lot {batch_index+1}/{len(batches)}: pages {start_page}-{end_page}")
+        
+        # Créer un PDF temporaire pour ce lot
+        batch_pdf_path = os.path.join(temp_dir, f"batch_{batch_index}.pdf")
+        
+        # Extraire les pages pour ce lot
+        with open(input_path, 'rb') as input_file:
+            reader = PdfReader(input_file)
+            writer = PdfWriter()
+            
+            # Ajouter les pages pour ce lot
+            for page_num in range(start_page - 1, end_page):
+                writer.add_page(reader.pages[page_num])
+            
+            # Écrire le PDF temporaire
+            with open(batch_pdf_path, 'wb') as output_file:
+                writer.write(output_file)
+        
+        # Générer un préfixe pour les fichiers de sortie
+        base_name = os.path.basename(input_path)
+        original_name = os.path.splitext(base_name)[0]
+        output_prefix = os.path.join(temp_dir, f"{original_name}_batch_{batch_index}")
+        
+        # Préparer les arguments pour l'outil C++
+        cmd_args = ["split", batch_pdf_path, output_prefix]
+        
+        # Exécuter l'outil pour ce lot
+        returncode, stdout, stderr = run_pdfeditor(cmd_args)
+        
+        if returncode != 0:
+            logger.error(f"Erreur lors du traitement du lot {batch_index+1}: {stderr}")
+            # Nettoyer le fichier temporaire
+            if os.path.exists(batch_pdf_path):
+                os.remove(batch_pdf_path)
+            continue
+        
+        try:
+            # Récupérer la liste des fichiers générés pour ce lot
+            import json
+            files_info = json.loads(stdout)
+            
+            if 'files' not in files_info:
+                logger.warning(f"Structure de réponse invalide pour le lot {batch_index+1}")
+                continue
+            
+            # Calculer le décalage de page pour ce lot
+            page_offset = start_page - 1
+            
+            # Traiter chaque fichier généré
+            for file_info in files_info['files']:
+                source_path = file_info.get('path')
+                filename = file_info.get('name', os.path.basename(source_path))
+                
+                if not os.path.isfile(source_path):
+                    logger.warning(f"Fichier généré introuvable: {source_path}")
+                    continue
+                
+                # Ajuster le numéro de page pour tenir compte du lot
+                original_page = file_info.get('page_number', 0)
+                adjusted_page = original_page + page_offset
+                
+                # Générer un nom unique avec le numéro de page correct
+                original_name_base = os.path.splitext(original_name)[0]
+                new_filename = f"{original_name_base}_page_{adjusted_page}.pdf"
+                
+                # Générer un nom unique pour éviter les conflits
+                unique_name = f"{uuid.uuid4().hex}_{new_filename}"
+                dest_path = os.path.join(processed_dir, unique_name)
+                
+                # Déplacer le fichier
+                shutil.copy2(source_path, dest_path)
+                
+                # URL relative pour le téléchargement
+                download_url = f"/download/{unique_name}"
+                
+                result_files.append({
+                    'filename': new_filename,  # Utiliser 'filename' pour la cohérence
+                    'name': new_filename,      # Conserver 'name' pour la rétrocompatibilité
+                    'path': dest_path,
+                    'url': download_url,
+                    'size': os.path.getsize(dest_path),
+                    'page_number': adjusted_page
+                })
+        
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement du lot {batch_index+1}: {str(e)}")
+        
+        finally:
+            # Nettoyer le fichier temporaire
+            if os.path.exists(batch_pdf_path):
+                os.remove(batch_pdf_path)
+    
+    # Trier les fichiers par numéro de page
+    result_files.sort(key=lambda f: int(f.get('page_number', 0)))
+    
+    if not result_files:
+        logger.warning("Aucun fichier généré par le traitement par lots, utilisation de la méthode de secours")
+        return split_pdf_fallback(input_path, temp_dir, "all", options)
+    
+    return result_files
 
 def split_pdf_by_count(file, pages_per_file, **options):
     """
@@ -447,8 +670,8 @@ def split_pdf_fallback(input_path, temp_dir, page_range=None, options=None):
     Args:
         input_path: Chemin vers le fichier PDF d'entrée
         temp_dir: Répertoire temporaire pour les opérations
-        page_range: Non utilisé, conservé pour compatibilité
-        options: Non utilisé, conservé pour compatibilité
+        page_range: Plage de pages à extraire (non utilisé, toutes les pages sont extraites)
+        options: Options supplémentaires (non utilisées actuellement)
         
     Returns:
         Liste de dictionnaires avec les informations sur les fichiers générés
@@ -513,7 +736,8 @@ def split_pdf_fallback(input_path, temp_dir, page_range=None, options=None):
                 shutil.move(output_path_temp, output_path)
                 
                 result_files.append({
-                    'name': output_filename,
+                    'filename': output_filename,  # Utiliser 'filename' pour la cohérence
+                    'name': output_filename,      # Conserver 'name' pour la rétrocompatibilité
                     'path': output_path,
                     'url': f"/download/{unique_output_filename}",
                     'size': os.path.getsize(output_path),

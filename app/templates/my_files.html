@@ -6,12 +6,12 @@
 <section class="min-h-screen py-10">
     <div class="w-full px-4 sm:px-6 lg:px-8 pt-5 pb-20 dark-gradient-blue">
         <div class="max-w-6xl mx-auto">
-            <h1 class="text-3xl font-extrabold text-white mb-2 text-center animate-fade-in-down">My PDF Files</h1>
-            <p class="text-center text-gray-300 mb-8 max-w-2xl mx-auto animate-fade-in-down" style="animation-delay: 0.1s">
+            <h1 class="text-3xl font-extrabold text-white mb-2 text-center animate-fade-in">My PDF Files</h1>
+            <p class="text-center text-gray-300 mb-8 max-w-2xl mx-auto animate-fade-in" style="animation-delay: 0.1s">
                 All your generated PDF files are available here for 24 hours.
             </p>
 
-            <div class="bg-surface-400 rounded-xl shadow-lg p-6 animate-fade-in-up" style="animation-delay: 0.1s">
+            <div class="bg-surface-400 rounded-xl shadow-lg p-6 animate-fade-in-up" style="animation-delay: 0.2s">
                 {% if files %}
                     <div class="overflow-hidden shadow-sm rounded-lg border border-surface-300">
                         <div class="overflow-x-auto">
@@ -37,7 +37,7 @@
                                 </thead>
                                 <tbody class="bg-surface-400 divide-y divide-surface-300">
                                     {% for file in files %}
-                                        <tr class="hover:bg-surface-300 transition-colors duration-150">
+                                        <tr class="hover:bg-surface-300 transition-colors duration-300">
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary-400 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -60,7 +60,7 @@
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <a href="{{ file.download_url }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-500 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-400 transition-colors">
+                                                <a href="{{ file.download_url }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-500 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-400 transition-colors duration-300">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                                         <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
                                                     </svg>
@@ -87,7 +87,7 @@
                             Use the tools to split or merge PDFs and they will appear here.
                         </p>
                         <div class="mt-6">
-                            <a href="{{ url_for('main.index') }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-500 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-400 transition-colors">
+                            <a href="{{ url_for('main.index') }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-500 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-400 transition-colors duration-300">
                                 Back to tools
                             </a>
                         </div>

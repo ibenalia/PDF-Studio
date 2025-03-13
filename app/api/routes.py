@@ -1,7 +1,7 @@
 """
 API Routes for PDF processing
 """
-from flask import Blueprint, request, jsonify, current_app, send_file, after_this_request
+from flask import Blueprint, request, jsonify, current_app, send_file, after_this_request, url_for
 from werkzeug.utils import secure_filename
 import os
 import zipfile
@@ -10,6 +10,9 @@ from io import BytesIO
 from . import pdf_processor
 import uuid
 import io
+import shutil
+import json
+import re
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -30,15 +33,15 @@ def pdf_info():
             
         # Get PDF information
         info = pdf_processor.get_pdf_info(file)
-            
-        return jsonify({
-            'status': 'success',
-            'data': info
-        })
+        
+        # Ajouter le statut directement dans l'objet info pour compatibilité frontend
+        info['status'] = 'success'
+        
+        return jsonify(info)
             
     except Exception as e:
         current_app.logger.error(f"Error in pdf_info: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'status': 'error'}), 500
 
 @api.route('/merge-pdf', methods=['POST'])
 def merge_pdf():
@@ -46,12 +49,18 @@ def merge_pdf():
     try:
         print("API: merge-pdf endpoint called")
         
-        if 'files' not in request.files:
+        # Vérifie les différents formats possibles pour les fichiers
+        if 'files[]' in request.files:
+            print("API: Using files[] parameter")
+            files = request.files.getlist('files[]')
+        elif 'files' in request.files:
+            print("API: Using files parameter")
+            files = request.files.getlist('files')
+        else:
             print("API: No files provided in request")
+            print(f"Available keys: {list(request.files.keys())}")
             return jsonify({'error': 'No file provided'}), 400
             
-        files = request.files.getlist('files')
-        
         if len(files) == 0:
             print("API: Files list is empty")
             return jsonify({'error': 'No file selected'}), 400
@@ -96,6 +105,7 @@ def split_pdf():
         
         if 'file' not in request.files:
             print("API: No file provided in request")
+            print(f"Available keys: {list(request.files.keys())}")
             return jsonify({'error': 'No file provided'}), 400
             
         file = request.files['file']
@@ -205,42 +215,93 @@ def split_pdf():
                 # Préparer une liste de tous les noms de fichiers pour l'URL de téléchargement
                 filenames = ",".join([f["filename"] for f in output_files])
                 
-                # Si la chaîne est trop longue, utiliser plutôt l'ID de session
-                if len(filenames) > 2000:
-                    download_url = f"/api/download-session?session_id={session_id}&clean=true"
-                    print(f"API: URL too long, using session ID instead: {session_id}")
-                else:
-                    download_url = f"/api/download-all?files={filenames}&clean=true"
-                
                 # Générer un identifiant unique pour le téléchargement
                 download_id = uuid.uuid4().hex[:16]
                 zip_filename = f"split_{download_id}.zip"
+                
+                # Créer physiquement le fichier ZIP pour qu'il apparaisse dans My Files
+                processed_dir = current_app.config.get('PROCESSED_FOLDER', '/tmp/processed')
+                temp_dir = current_app.config.get('TEMP_FOLDER', '/tmp/uploads')
+                
+                # Ensure the directories exist
+                os.makedirs(processed_dir, exist_ok=True)
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                zip_temp_path = os.path.join(temp_dir, zip_filename)
+                zip_dest_path = os.path.join(processed_dir, zip_filename)
+                
+                print(f"API: Creating ZIP file at {zip_temp_path}")
+                
+                # Créer un fichier ZIP avec les fichiers générés
+                with zipfile.ZipFile(zip_temp_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for file_info in output_files:
+                        source_path = file_info.get('path')
+                        arc_name = file_info.get('filename')  # Nom dans l'archive
+                        if os.path.exists(source_path):
+                            print(f"API: Adding file to ZIP: {source_path}")
+                            zip_file.write(source_path, arcname=arc_name)
+                
+                # Vérifier que le ZIP a bien été créé
+                if not os.path.exists(zip_temp_path):
+                    print(f"API: ERROR - ZIP file was not created at {zip_temp_path}")
+                    return jsonify({'error': 'Failed to create ZIP file'}), 500
+                
+                # Déplacer le ZIP vers le répertoire de traitement
+                try:
+                    shutil.move(zip_temp_path, zip_dest_path)
+                    print(f"API: ZIP file successfully moved to {zip_dest_path}")
+                    
+                    # Vérifier que le ZIP a bien été créé dans le répertoire de traitement
+                    print(f"API: ZIP file exists at destination: {os.path.exists(zip_dest_path)}")
+                    print(f"API: ZIP file size: {os.path.getsize(zip_dest_path) if os.path.exists(zip_dest_path) else 'N/A'}")
+                except Exception as e:
+                    print(f"API: ERROR - Failed to move ZIP file: {str(e)}")
+                    # If the move fails, try a copy instead
+                    try:
+                        shutil.copy(zip_temp_path, zip_dest_path)
+                        print(f"API: ZIP file successfully copied to {zip_dest_path}")
+                    except Exception as copy_error:
+                        print(f"API: ERROR - Failed to copy ZIP file: {str(copy_error)}")
+                        return jsonify({'error': f'Failed to save ZIP file: {str(e)}'}), 500
+                
+                # Si la chaîne est trop longue, utiliser plutôt l'ID de session
+                if len(filenames) > 2000:
+                    download_url = url_for('main.download_session_files', session_id=session_id, clean=False, _external=False)
+                    print(f"API: URL too long, using session ID instead: {session_id}")
+                else:
+                    download_url = url_for('main.download_all_files', files=filenames, clean=False, _external=False)
+                
+                # Ajouter une URL directe pour le fichier ZIP
+                zip_download_url = url_for('main.download_file', filename=zip_filename, _external=False)
+                print(f"API: Direct ZIP download URL: {zip_download_url}")
                 
                 # Format de réponse simplifié pour les téléchargements multiples
                 return jsonify({
                     "success": True,
                     "message": f"PDF divisé avec succès en {total_file_count} fichiers.",
                     "files_count": total_file_count,
-                    "download_url": download_url,
+                    "download_url": zip_download_url,  # Use the direct ZIP URL instead
                     "is_zip": True,
-                    "filename": zip_filename
+                    "filename": zip_filename,
+                    "data": {
+                        "files": [
+                            {
+                                "filename": file_info.get("filename"),
+                                "size": file_info.get("size", 0),
+                                "size_formatted": pdf_processor.format_file_size(file_info.get("size", 0)),
+                                "page_number": file_info.get("page_number", 0),
+                                "url": url_for('main.download_file', filename=os.path.basename(file_info.get("path", "")), _external=False)
+                            } 
+                            for file_info in output_files
+                        ]
+                    }
                 })
             
             else:
                 # Un seul fichier généré, retourner directement son URL
                 print(f"API: Returning a single file download")
                 file_info = output_files[0]
-                
-                return jsonify({
-                    "success": True,
-                    "message": "PDF divisé avec succès",
-                    "files_count": 1,
-                    "download_url": file_info["url"],
-                    "is_zip": False,
-                    "filename": file_info["filename"]
-                })
             
-            # Version classique de la réponse (maintenue pour la rétrocompatibilité mais non utilisée)
             response = {
                 'status': 'success',
                 'data': {
@@ -509,9 +570,10 @@ def download_file(filename):
         
         if not os.path.exists(file_path):
             current_app.logger.warning(f"Fichier introuvable: {file_path}")
-            return jsonify({'error': 'File not found'}), 404
+            return jsonify({'error': 'File not found', 'status': 'error'}), 404
         
         # Option pour nettoyer les fichiers après téléchargement
+        # Par défaut, ne pas nettoyer pour permettre à l'utilisateur de télécharger à nouveau
         clean_after = request.args.get('clean', 'false').lower() == 'true'
         
         # Créer une fonction de rappel (callback) pour nettoyer après le téléchargement
@@ -526,6 +588,9 @@ def download_file(filename):
                 except Exception as e:
                     current_app.logger.error(f"Erreur lors du nettoyage du fichier {filename}: {str(e)}")
             return response
+        
+        # Log pour le débogage
+        current_app.logger.info(f"Téléchargement du fichier: {filename}, nettoyage après: {clean_after}")
             
         return send_file(
             file_path,
@@ -535,7 +600,7 @@ def download_file(filename):
         
     except Exception as e:
         current_app.logger.error(f"Error in download_file: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'status': 'error'}), 500
 
 @api.route('/download-all', methods=['GET'])
 def download_all_files():
@@ -544,12 +609,12 @@ def download_all_files():
         files_param = request.args.get('files', '')
         
         if not files_param:
-            return jsonify({'error': 'No files specified'}), 400
+            return jsonify({'error': 'No files specified', 'status': 'error'}), 400
             
         filenames = files_param.split(',')
         
         if not filenames:
-            return jsonify({'error': 'No valid files specified'}), 400
+            return jsonify({'error': 'No valid files specified', 'status': 'error'}), 400
         
         # Create a temporary directory for the ZIP file
         temp_dir = pdf_processor.get_temp_dir()
@@ -562,11 +627,14 @@ def download_all_files():
             # Keep track of filenames to avoid duplicates in the ZIP
             used_names = set()
             files_added = False
+            file_paths = []  # Liste des chemins de fichiers pour le nettoyage
             
-            # Add each file to the ZIP
+            # Créer un tableau pour les fichiers à chercher
             for filename in filenames:
+                # Chercher le fichier directement dans le répertoire
                 filepath = os.path.join(processed_dir, filename)
                 
+                # Si le fichier existe, l'ajouter au ZIP
                 if os.path.exists(filepath):
                     # Get a clean name for the file in the ZIP
                     original_name = filename.split('_', 1)[1] if '_' in filename else filename
@@ -580,50 +648,57 @@ def download_all_files():
                         counter += 1
                     
                     used_names.add(zip_name)
+                    file_paths.append(filepath)
                     
                     # Add to ZIP archive
                     zip_file.write(filepath, zip_name)
                     files_added = True
-        
-        # Si aucun fichier n'a été ajouté
-        if not files_added:
-            return jsonify({'error': 'No files found to download'}), 404
             
-        # Reset file pointer to the beginning
-        zip_buffer.seek(0)
-        
-        # Create a unique ZIP filename
-        zip_filename = f"pdf_files_{uuid.uuid4()}.zip"
-        
-        # Option pour nettoyer les fichiers après téléchargement
-        clean_after = request.args.get('clean', 'false').lower() == 'true'
-        
-        # Créer une fonction de rappel (callback) pour nettoyer après le téléchargement
-        @after_this_request
-        def cleanup(response):
-            if clean_after:
-                try:
-                    # Nettoyer les fichiers individuels
-                    for filename in filenames:
-                        filepath = os.path.join(processed_dir, filename)
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
-                    current_app.logger.info(f"Fichiers nettoyés après téléchargement ZIP: {len(filenames)} fichiers")
-                except Exception as e:
-                    current_app.logger.error(f"Erreur lors du nettoyage des fichiers: {str(e)}")
-            return response
-        
-        # Return the ZIP file
-        return send_file(
-            zip_buffer,
-            as_attachment=True,
-            download_name=zip_filename,
-            mimetype='application/zip'
-        )
-        
+            # Si aucun fichier n'a été ajouté
+            if not files_added:
+                # Lister les fichiers dans le répertoire pour le débogage
+                directory_contents = os.listdir(processed_dir) if os.path.exists(processed_dir) else []
+                current_app.logger.error(f"Aucun fichier trouvé à télécharger. Fichiers recherchés: {filenames}. Contenu du répertoire: {directory_contents}")
+                return jsonify({'error': 'No files found to download', 'status': 'error'}), 404
+                
+            # Reset file pointer to the beginning
+            zip_buffer.seek(0)
+            
+            # Create a unique ZIP filename
+            zip_filename = f"pdf_files_{uuid.uuid4()}.zip"
+            
+            # Option pour nettoyer les fichiers après téléchargement
+            # Par défaut, ne pas nettoyer pour permettre à l'utilisateur de télécharger à nouveau
+            clean_after = request.args.get('clean', 'false').lower() == 'true'
+            
+            # Log pour le débogage
+            current_app.logger.info(f"Création du ZIP avec {len(file_paths)} fichiers, nettoyage après: {clean_after}")
+            
+            # Créer une fonction de rappel (callback) pour nettoyer après le téléchargement
+            @after_this_request
+            def cleanup(response):
+                if clean_after:
+                    try:
+                        # Nettoyer les fichiers individuels
+                        for filepath in file_paths:
+                            if os.path.exists(filepath):
+                                os.remove(filepath)
+                        current_app.logger.info(f"Fichiers nettoyés après téléchargement ZIP: {len(file_paths)} fichiers")
+                    except Exception as e:
+                        current_app.logger.error(f"Erreur lors du nettoyage des fichiers: {str(e)}")
+                return response
+            
+            # Return the ZIP file
+            return send_file(
+                zip_buffer,
+                as_attachment=True,
+                download_name=zip_filename,
+                mimetype='application/zip'
+            )
+            
     except Exception as e:
         current_app.logger.error(f"Error in download_all_files: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'status': 'error'}), 500
 
 @api.route('/download-session', methods=['GET'])
 def download_session_files():
@@ -633,12 +708,13 @@ def download_session_files():
         session_id = request.args.get('session_id')
         
         # Option pour nettoyer les fichiers après téléchargement
+        # Par défaut, ne pas nettoyer pour permettre à l'utilisateur de télécharger à nouveau
         should_clean = request.args.get('clean', 'false').lower() == 'true'
         
         # Récupérer tous les fichiers du dossier processed
         processed_dir = pdf_processor.get_processed_dir()
         if not os.path.exists(processed_dir):
-            return jsonify({'error': 'No files available'}), 404
+            return jsonify({'error': 'No files available', 'status': 'error'}), 404
             
         # Lister tous les fichiers PDF dans le répertoire processed
         pdf_files = []
@@ -655,22 +731,31 @@ def download_session_files():
         session_files = [(name, path) for name, path, _ in pdf_files]
                 
         if not session_files:
-            return jsonify({'error': 'No files found'}), 404
+            return jsonify({'error': 'No files found', 'status': 'error'}), 404
+        
+        # Log pour le débogage
+        current_app.logger.info(f"Téléchargement de session: {len(session_files)} fichiers, nettoyage après: {should_clean}")
             
         # Si un seul fichier, le retourner directement
         if len(session_files) == 1:
             filename, file_path = session_files[0]
-            response = send_file(file_path, as_attachment=True)
             
-            # Nettoyer si demandé
-            if should_clean:
-                try:
-                    os.remove(file_path)
-                    print(f"API: Cleaned up file after download: {file_path}")
-                except Exception as e:
-                    print(f"API: Error cleaning up file: {str(e)}")
-                    
-            return response
+            # Créer une fonction de rappel (callback) pour nettoyer après le téléchargement
+            @after_this_request
+            def cleanup_single(response):
+                if should_clean:
+                    try:
+                        os.remove(file_path)
+                        print(f"API: Cleaned up file after download: {file_path}")
+                    except Exception as e:
+                        print(f"API: Error cleaning up file: {str(e)}")
+                return response
+                
+            return send_file(
+                file_path, 
+                as_attachment=True,
+                download_name=filename.split('_', 1)[1] if '_' in filename else filename
+            )
             
         # Pour plusieurs fichiers, les comprimer
         current_app.logger.info(f"API: Creating ZIP with {len(session_files)} files")
@@ -678,18 +763,24 @@ def download_session_files():
         
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             for filename, file_path in session_files:
-                zf.write(file_path, filename)
+                # Utiliser un nom plus propre pour le fichier dans le ZIP
+                clean_name = filename.split('_', 1)[1] if '_' in filename else filename
+                zf.write(file_path, clean_name)
                 
         memory_file.seek(0)
         
-        # Nettoyer les fichiers si demandé
-        if should_clean:
-            try:
-                for _, file_path in session_files:
-                    os.remove(file_path)
-                print(f"API: Cleaned up {len(session_files)} files after download")
-            except Exception as e:
-                print(f"API: Error cleaning up files: {str(e)}")
+        # Créer une fonction de rappel (callback) pour nettoyer après le téléchargement
+        @after_this_request
+        def cleanup_multi(response):
+            if should_clean:
+                try:
+                    for _, file_path in session_files:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    print(f"API: Cleaned up {len(session_files)} files after download")
+                except Exception as e:
+                    print(f"API: Error cleaning up files: {str(e)}")
+            return response
                 
         download_id = uuid.uuid4().hex[:8]
         return send_file(
@@ -701,4 +792,86 @@ def download_session_files():
         
     except Exception as e:
         current_app.logger.error(f"Error in download_session_files: {str(e)}")
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@api.route('/list-split-files', methods=['POST'])
+def list_split_files():
+    """List the individual PDF files that were split from a PDF and bundled in a ZIP file"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'zip_filename' not in data:
+            return jsonify({'error': 'ZIP filename not provided', 'success': False}), 400
+            
+        zip_filename = data['zip_filename']
+        
+        # Validate filename for security
+        if not zip_filename or '..' in zip_filename or not zip_filename.startswith('split_') or not zip_filename.endswith('.zip'):
+            return jsonify({'error': 'Invalid ZIP filename', 'success': False}), 400
+            
+        # Get the processed directory
+        processed_dir = current_app.config.get('PROCESSED_FOLDER', '/tmp/processed')
+        zip_path = os.path.join(processed_dir, zip_filename)
+        
+        if not os.path.exists(zip_path):
+            return jsonify({'error': 'ZIP file not found', 'success': False}), 404
+            
+        # Get the file list from the ZIP
+        files = []
+        try:
+            # Extraire les fichiers du ZIP dans un dossier temporaire pour les rendre disponibles au téléchargement
+            session_id = pdf_processor.get_session_id()
+            temp_extract_dir = os.path.join(pdf_processor.get_temp_dir(), session_id)
+            os.makedirs(temp_extract_dir, exist_ok=True)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_file:
+                # Extraire et déplacer les fichiers vers le dossier traité
+                for file_info in zip_file.infolist():
+                    if file_info.filename.lower().endswith('.pdf'):
+                        # Extract page number from filename if possible
+                        page_match = re.search(r'page_(\d+)', file_info.filename)
+                        page_number = int(page_match.group(1)) if page_match else 0
+                        
+                        # Générer un nom unique pour éviter les collisions
+                        unique_id = uuid.uuid4().hex[:8]
+                        unique_filename = f"{unique_id}_{file_info.filename}"
+                        extract_path = os.path.join(processed_dir, unique_filename)
+                        
+                        # Extraire le fichier
+                        zip_file.extract(file_info.filename, temp_extract_dir)
+                        source_path = os.path.join(temp_extract_dir, file_info.filename)
+                        
+                        # Déplacer vers le dossier traité
+                        shutil.copy(source_path, extract_path)
+                        
+                        # Créer l'URL de téléchargement
+                        download_url = url_for('main.download_file', filename=unique_filename, _external=False)
+                        
+                        # Add file info to the list
+                        files.append({
+                            'filename': file_info.filename,
+                            'size': file_info.file_size,
+                            'size_formatted': pdf_processor.format_file_size(file_info.file_size),
+                            'page_number': page_number,
+                            'url': download_url
+                        })
+                
+                # Clean up temporary directory
+                shutil.rmtree(temp_extract_dir, ignore_errors=True)
+        except Exception as zip_error:
+            print(f"API: Error reading ZIP file contents: {str(zip_error)}")
+            return jsonify({'error': f'Error reading ZIP file contents: {str(zip_error)}', 'success': False}), 500
+            
+        # Sort files by page number
+        files.sort(key=lambda x: x['page_number'])
+        
+        return jsonify({
+            'success': True,
+            'files': files,
+            'count': len(files),
+            'zip_filename': zip_filename
+        })
+        
+    except Exception as e:
+        print(f"API: Error in list_split_files: {str(e)}")
+        return jsonify({'error': str(e), 'success': False}), 500 

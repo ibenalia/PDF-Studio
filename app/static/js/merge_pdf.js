@@ -449,11 +449,26 @@ document.addEventListener('DOMContentLoaded', function() {
         resultMessage.classList.remove('text-red-500');
         resultMessage.textContent = data.message || 'Your PDFs have been successfully merged.';
         
-        // Configure the download link
-        downloadLink.href = data.download_url || '#';
+        // Configure the download link with correct URL
+        let downloadUrl = '';
+        
+        // Check if we have data.data (nested response) or direct url
+        if (data.data && data.data.url) {
+            downloadUrl = data.data.url;
+        } else if (data.download_url) {
+            downloadUrl = data.download_url;
+        } else if (data.data && data.data.download_url) {
+            downloadUrl = data.data.download_url;
+        } else if (data.url) {
+            downloadUrl = data.url;
+        }
+        
+        // Set the href attribute
+        downloadLink.href = downloadUrl || '#';
+        console.log('Download link set to:', downloadLink.href);
         
         // If it's a ZIP file, adjust the button text
-        if (data.is_zip) {
+        if (data.is_zip || (data.data && data.data.is_zip)) {
             downloadLink.querySelector('span').textContent = 'Download ZIP archive';
         } else {
             downloadLink.querySelector('span').textContent = 'Download merged PDF';
